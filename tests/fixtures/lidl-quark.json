@@ -1,0 +1,127 @@
+{
+	"productId": 11005419,
+	"canonicalPath": "/p/proteiinirahka-xxl/p11005419",
+	"category": "Food",
+	"keyfacts": {
+		"analyticsCategory": "Food",
+		"description": "<ul><li>erilaisia</li></ul>",
+		"fullTitle": "Proteiinirahka XXL",
+		"moreDetails": "Lisätietoja",
+		"title": "Proteiinirahka XXL",
+		"wonCategoryPrimary": "Tarpeen maailmat/Ruoka ja muut elintarvikkeet/Juustot, maitotuotteet ja kananmunat/Jogurtit ja rahkat",
+		"wonCategoryPrimaryPath": "0/17/1739/173911"
+	},
+	"price": {
+		"currencyCode": "EUR",
+		"currencyCodeSecond": "",
+		"currencySymbol": "€",
+		"currencySymbolSecond": "",
+		"displayedCurrency": "€",
+		"hasStar": false,
+		"hasVat": false,
+		"packaging": {
+			"text": "500 g | 3,98 €/kg"
+		},
+		"price": 1.99,
+		"priceTheme": "white_red",
+		"specialTaxes": [],
+		"variantsHaveDifferentPrices": false
+	},
+	"eans": ["4056489601593", "4056489601609", "4056489601616"],
+	"regionsV2": {
+		"5": {
+			"regionName": "Janakkala",
+			"isDefault": false,
+			"regionPriceId": "1",
+			"status": "ONLINE",
+			"hasVat": false,
+			"priceHasZeroVat": false
+		},
+		"6": {
+			"regionName": "Laukaa",
+			"isDefault": false,
+			"regionPriceId": "1",
+			"status": "ONLINE",
+			"hasVat": false,
+			"priceHasZeroVat": false
+		},
+		"7": {
+			"regionName": "Järvenpää",
+			"isDefault": true,
+			"regionPriceId": "1",
+			"status": "ONLINE",
+			"hasVat": false,
+			"priceHasZeroVat": false
+		}
+	},
+	"regionsPrices": {
+		"1": {
+			"currentPrice": {
+				"basePrice": {
+					"prefix": false
+				},
+				"currencyCode": "EUR",
+				"currencyCodeSecond": "",
+				"currencySymbol": "€",
+				"currencySymbolSecond": "",
+				"displayedCurrency": "€",
+				"endDate": "2026-11-04T21:59:59Z",
+				"endDateExclusive": "2026-11-04T22:00Z",
+				"hasStar": false,
+				"hasVat": true,
+				"packaging": {
+					"text": "500 g | 3,98 €/kg"
+				},
+				"price": 1.99,
+				"priceTheme": "white_red",
+				"specialTaxes": [],
+				"startDate": "2026-10-22T15:52:29.266Z",
+				"superscript": "",
+				"variantsHaveDifferentPrices": false
+			},
+			"futureLidlPlusPrices": []
+		}
+	},
+	"lidlPlus": [],
+	"multipack": false,
+	"storeFacts": {
+		"inStoreCampaign": false,
+		"online": false,
+		"retail": true,
+		"showStoreAvailability": false,
+		"showStoreAvailabilityPreview": false,
+		"store": false,
+		"storeStartDate": 1793570400,
+		"warehouses": []
+	},
+	"stockAvailability": {
+		"availabilityIndicator": 0,
+		"backInStockInfo": 4,
+		"badgeInfo": {
+			"badges": [
+				{
+					"text": "Myymälässä 2.11. - 4.11.",
+					"type": "IN_STORE_FROM_FUTURE_DATE_RANGE"
+				}
+			]
+		},
+		"badgeInfoV2": [
+			{
+				"badges": [
+					{
+						"text": "Myymälässä 2.11. - 4.11.",
+						"type": "IN_STORE_FROM_FUTURE_DATE_RANGE"
+					}
+				],
+				"validFrom": 1793570400,
+				"validUntil": 1793829599
+			}
+		],
+		"onlineAvailable": false,
+		"minOrderableQuantity": 0,
+		"initialMinOrderableQuantity": 1,
+		"preselectedQuantity": 0,
+		"backInStockNotification": false,
+		"backInStockNotificationSoldOut": false
+	}
+}

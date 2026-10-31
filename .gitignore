@@ -1,5 +1,8 @@
 # dependencies (bun install)
 node_modules
+.ruoka-preferences.json
+.ruoka-preferences.*.tmp
+.ruoka-preferences.json.*.tmp
 
 # output
 out

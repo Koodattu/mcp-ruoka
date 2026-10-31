@@ -7,15 +7,20 @@
 		"mcp-ruoka": "src/index.ts"
 	},
 	"scripts": {
-		"dev": "bun run --watch src/index.ts",
+		"dev": "node --env-file-if-exists=.env --watch src/index.ts --stdio",
 		"build": "bun build src/index.ts --outdir dist --target bun",
 		"start": "bun run dist/index.js",
 		"check": "bunx biome check --write .",
-		"typecheck": "bunx tsc --noEmit"
+		"typecheck": "bunx tsc --noEmit",
+		"cli": "node --env-file-if-exists=.env src/cli.ts",
+		"stdio": "node --env-file-if-exists=.env src/index.ts --stdio",
+		"test": "node --test tests/*.test.ts",
+		"smoke": "node --env-file-if-exists=.env scripts/smoke-groceries.ts"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.11",
-		"@types/bun": "latest"
+		"@types/bun": "latest",
+		"proj4": "^2.22.0"
 	},
 	"peerDependencies": {
 		"typescript": "^5"

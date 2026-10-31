@@ -16,6 +16,10 @@ export interface Store {
 	name: string;
 	chain: Chain;
 	location: string;
+	postalCode?: string | null;
+	address?: string | null;
+	coordinates?: { latitude: number; longitude: number } | null;
+	website?: string | null;
 }
 
 export interface SearchResult {

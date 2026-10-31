@@ -7,7 +7,7 @@
 		{
 			"name": "ruoka",
 			"source": "./",
-			"description": "Search Finnish grocery and alcohol products across k-ruoka.fi, s-kaupat.fi, and alko.fi via MCP",
+			"description": "Search Finnish groceries across K-Ruoka, S-Kaupat and published Lidl products",
 			"version": "0.2.0"
 		}
 	]

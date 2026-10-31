@@ -1,0 +1,260 @@
+{
+	"ean": "6410405082657",
+	"localizedName": {
+		"finnish": "Pirkka suomalainen kevytmaito 1l",
+		"swedish": "Pirkka finsk lättmjölk 1l",
+		"english": "Pirkka milk semi skimmed 1 l"
+	},
+	"store": {
+		"id": "N106",
+		"isLocal": false
+	},
+	"images": ["https://public.keskofiles.com/f/k-ruoka/product/6410405082657"],
+	"brand": {
+		"id": "1",
+		"name": "Pirkka",
+		"slug": "pirkka-1"
+	},
+	"category": {
+		"tree": [
+			{
+				"localizedName": {
+					"finnish": "Maito, juusto, munat ja rasvat",
+					"english": "Milk, cheese, eggs and fats",
+					"swedish": "Mejeri, ost och ägg"
+				},
+				"slug": "maito-juusto-munat-ja-rasvat"
+			},
+			{
+				"localizedName": {
+					"finnish": "Maidot ja piimät",
+					"english": "Milks and buttermilk",
+					"swedish": "Mjölk och surmjölk"
+				},
+				"slug": "maito-juusto-munat-ja-rasvat/maidot-ja-piimat"
+			},
+			{
+				"localizedName": {
+					"finnish": "Maidot",
+					"english": "Milks",
+					"swedish": "Mjölk"
+				},
+				"slug": "maito-juusto-munat-ja-rasvat/maidot-ja-piimat/maidot"
+			}
+		],
+		"localizedName": {
+			"finnish": "Maito, juusto, munat ja rasvat",
+			"english": "Milk, cheese, eggs and fats",
+			"swedish": "Mejeri, ost och ägg"
+		},
+		"path": "maito-juusto-munat-ja-rasvat/maidot-ja-piimat/maidot",
+		"order": 177
+	},
+	"availability": {
+		"store": true,
+		"web": true
+	},
+	"mobilescan": {
+		"pricing": {
+			"normal": {
+				"unit": "kpl",
+				"localizedUnit": {
+					"fi": "kpl",
+					"sv": "st"
+				},
+				"isApproximate": false,
+				"soldBy": {
+					"kind": "piece"
+				},
+				"price": 0.99,
+				"unitPrice": {
+					"value": 0.99,
+					"unit": "l",
+					"contentSize": 1
+				}
+			},
+			"libraryVersion": "4.2.1"
+		},
+		"discountLimited": false,
+		"vat": 13.5
+	},
+	"productAttributes": {
+		"urlSlug": "pirkka-kevytmaito-1-l-6410405082657",
+		"productContents": {
+			"en": "Pasteurized MILK (origin Finland) and vitamin D.",
+			"fi": "Pastöroitu MAITO(alkuperä Suomi) ja D-vitamiini",
+			"sv": "Pastöriserad MJÖLK(ursprung Finland ) och vitamin D"
+		},
+		"origin": {
+			"countryOfOrigin": "fi",
+			"countryOfOriginI18n": {
+				"en": "Finland",
+				"fi": "Suomi",
+				"sv": "Finland"
+			}
+		},
+		"instructions": {
+			"storageAndUse": {
+				"en": "Store protect from light at +2-+6C.",
+				"fi": "Säilytettävä valolta suojattuna +2-+6C:ssa.",
+				"sv": "Förvaras skyddad för ljus vid +2-+6C."
+			}
+		},
+		"localizedAllergens": {
+			"contains": {
+				"en": ["Milk and its derivatives", "Lactose"],
+				"fi": ["Maito", "Laktoosi"],
+				"sv": ["Mjölk", "Laktos"]
+			},
+			"freeFrom": {
+				"en": [
+					"Celery or its derivatives",
+					"Lupine and their derivatives in the product",
+					"Eggs and their derivatives in the product",
+					"Tree nuts and its derivatives",
+					"Peanuts and its derivatives",
+					"Mustard or its derivatives",
+					"Molluscs and its derivatives",
+					"Soybeans and its derivatives",
+					"Fish and their derivatives in the product",
+					"Cereals containing gluten and its derivatives",
+					"Sesame seeds or its derivatives",
+					"Crustaceans and their derivatives",
+					"Sulfur Dioxide and Sulfits"
+				],
+				"fi": [
+					"Selleri",
+					"Lupiini",
+					"Muna",
+					"Pähkinät",
+					"Maapähkinä",
+					"Sinappi",
+					"Nilviäiset",
+					"Soijapavut",
+					"Kala",
+					"Gluteenia  sisältävät viljat ja -tuotteet",
+					"Seesaminsiemenet",
+					"Äyriäiset",
+					"Rikkidioksidi ja sulfiitit"
+				],
+				"sv": [
+					"Selleri",
+					"Lupin",
+					"Ägg",
+					"Nöt",
+					"Jordnötter",
+					"Senap",
+					"Blötdjur",
+					"Sojabönor",
+					"Fisk",
+					"Spannmål  som innehåller gluten",
+					"Sesamfrön",
+					"Skaldjur",
+					"Dioxid och sulfiter"
+				]
+			},
+			"mayContain": {
+				"en": [],
+				"fi": [],
+				"sv": []
+			}
+		},
+		"nutritionalContents": [
+			{
+				"basis": {
+					"en": "100 g",
+					"fi": "100 g",
+					"sv": "100 g"
+				},
+				"nutrients": {
+					"fat": {
+						"amount": 1.5
+					},
+					"salt": {
+						"amount": 0.1
+					},
+					"lactose": {
+						"amount": 4.8
+					},
+					"protein": {
+						"amount": 3.5
+					},
+					"energyKj": 197,
+					"energyKcal": 47,
+					"fatSaturated": {
+						"amount": 1
+					},
+					"carbohydrates": {
+						"amount": 4.8
+					},
+					"carbohydratesSugar": {
+						"amount": 4.8
+					}
+				},
+				"preparationState": {
+					"en": "Prepared",
+					"fi": "Valmistettuna",
+					"sv": "Färdig"
+				},
+				"primaryNutrients": {
+					"fat": {
+						"amount": 1.5
+					},
+					"salt": {
+						"amount": 0.1
+					},
+					"lactose": {
+						"amount": 4.8
+					},
+					"protein": {
+						"amount": 3.5
+					},
+					"energyKj": 197,
+					"energyKcal": 47,
+					"fatSaturated": {
+						"amount": 1
+					},
+					"carbohydrates": {
+						"amount": 4.8
+					},
+					"carbohydratesSugar": {
+						"amount": 4.8
+					}
+				},
+				"tertiaryNutrients": [
+					{
+						"name": {
+							"en": "lactose",
+							"fi": "Laktoosi",
+							"sv": "Kolhydrat , varav laktos"
+						},
+						"unit": "g",
+						"amount": 4.8
+					}
+				],
+				"secondaryNutrients": [
+					{
+						"name": {
+							"en": "vitamin D; calculated by summation of",
+							"fi": "D-vitamiini",
+							"sv": "Vitamin D"
+						},
+						"unit": "mcg",
+						"amount": 1,
+						"percentageOfDailyIntake": 20
+					},
+					{
+						"name": {
+							"en": "calcium",
+							"fi": "Kalsium",
+							"sv": "Kalcium"
+						},
+						"unit": "mg",
+						"amount": 120,
+						"percentageOfDailyIntake": 15
+					}
+				]
+			}
+		]
+	}
+}

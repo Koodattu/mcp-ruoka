@@ -1,4 +1,5 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -14,15 +15,13 @@ import {
 	validateClientCredentials,
 	validateRefreshToken,
 } from "./auth.ts";
-import { warmup as warmupAlko } from "./browser/alko.ts";
-import { warmup as warmupSKaupat } from "./browser/s-kaupat.ts";
-import { getPage } from "./browser/session.ts";
+import { closeBrowser } from "./browser/session.ts";
 import { logger } from "./logger.ts";
 import { registerSearchTool } from "./tools/search.ts";
 import { registerStoresTool } from "./tools/stores.ts";
 
 const logoPath = join(import.meta.dirname, "..", "logo.png");
-const logoDataUri = `data:image/png;base64,${Buffer.from(await Bun.file(logoPath).arrayBuffer()).toString("base64")}`;
+const logoDataUri = `data:image/png;base64,${readFileSync(logoPath).toString("base64")}`;
 
 function createServer(): McpServer {
 	const server = new McpServer({
@@ -40,20 +39,20 @@ if (process.argv.includes("--stdio")) {
 	const server = createServer();
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
-	getPage().catch((err) => {
-		logger.warn({ err }, "K-Ruoka pre-init failed (will retry on first request)");
-	});
-	warmupSKaupat().catch((err) => {
-		logger.warn({ err }, "S-Kaupat pre-init failed (will retry on first request)");
-	});
-	warmupAlko().catch((err) => {
-		logger.warn({ err }, "Alko pre-init failed (will retry on first request)");
-	});
+	const onclose = transport.onclose;
+	transport.onclose = () => {
+		onclose?.();
+		closeBrowser().catch((err) => logger.error({ err }, "Browser close failed"));
+	};
 } else {
 	startHttpServer();
 }
 
 function startHttpServer() {
+	if (typeof Bun === "undefined")
+		throw new Error(
+			"HTTP mode currently requires Bun. Use --stdio or src/cli.ts with Node 24 for local Windows use.",
+		);
 	interface TrackedTransport {
 		transport: WebStandardStreamableHTTPServerTransport;
 		lastActivity: number;
@@ -311,15 +310,10 @@ function startHttpServer() {
 	});
 
 	logger.info({ port, url: `http://localhost:${port}/mcp` }, "Ruoka MCP server listening");
+}
 
-	// Pre-warm so the first request isn't slow
-	getPage().catch((err) => {
-		logger.warn({ err }, "K-Ruoka pre-init failed (will retry on first request)");
-	});
-	warmupSKaupat().catch((err) => {
-		logger.warn({ err }, "S-Kaupat pre-init failed (will retry on first request)");
-	});
-	warmupAlko().catch((err) => {
-		logger.warn({ err }, "Alko pre-init failed (will retry on first request)");
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+	process.on(signal, () => {
+		closeBrowser().finally(() => process.exit(0));
 	});
 }

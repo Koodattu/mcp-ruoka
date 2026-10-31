@@ -1,0 +1,95 @@
+{
+	"ean": "6415712506032",
+	"storeId": "513971200",
+	"name": "Kotimaista rasvaton maito 1l",
+	"slug": "kotimaista-rasvaton-maito-1l",
+	"brandName": "Kotimaista",
+	"countryOfOrigin": "Suomi",
+	"ingredientStatement": "pastöroitu rasvaton MAITO ja D-vitamiini",
+	"isGlobalFallback": null,
+	"allergens": [
+		{
+			"allergenTypeCode": "AM",
+			"allergenTypeText": "Maito",
+			"levelOfContainmentCode": "CONTAINS"
+		},
+		{
+			"allergenTypeCode": "ML",
+			"allergenTypeText": "Laktoosi",
+			"levelOfContainmentCode": "CONTAINS"
+		}
+	],
+	"pricing": {
+		"currentPrice": 0.85,
+		"regularPrice": 0.85,
+		"comparisonPrice": 0.85,
+		"comparisonUnit": "LTR",
+		"salesUnit": "PCE",
+		"isApproximatePrice": false,
+		"depositPrice": null,
+		"campaignPrice": null,
+		"campaignPriceValidUntil": null
+	},
+	"productDetails": {
+		"nutrients": [
+			{
+				"referenceQuantity": "100 g",
+				"nutrients": [
+					{
+						"name": "Energia",
+						"value": "140 kJ / 33 kcal"
+					},
+					{
+						"name": "Rasvaa",
+						"value": "0 g"
+					},
+					{
+						"name": "- josta tyydyttyneitä rasvoja",
+						"value": "0 g"
+					},
+					{
+						"name": "Hiilihydraattia",
+						"value": "4,9 g"
+					},
+					{
+						"name": "- josta sokereita",
+						"value": "4,9 g"
+					},
+					{
+						"name": "Proteiinia",
+						"value": "3,4 g"
+					},
+					{
+						"name": "Suola",
+						"value": "0,10 g"
+					},
+					{
+						"name": "D-vitamiini",
+						"value": "1 µg"
+					}
+				]
+			}
+		],
+		"storageGuideForConsumer": "Säilytys valolta suojattuna +0 – +6 °C. Avattuna jääkaapissa 3–4 päivää.",
+		"productImages": {
+			"mainImage": {
+				"urlTemplate": "https://cdn.s-cloud.fi/v1/{MODIFIERS}/assets/dam-id/EgIC40qkqw-9pDn0NjPWu1.{EXTENSION}"
+			}
+		}
+	},
+	"location": {
+		"aisle": "1001",
+		"floor": 1
+	},
+	"hierarchyPath": [
+		{
+			"name": "Maidot"
+		},
+		{
+			"name": "Maidot ja piimät"
+		},
+		{
+			"name": "Maito, munat ja rasvat"
+		}
+	]
+}

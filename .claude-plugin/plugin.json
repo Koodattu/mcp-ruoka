@@ -1,6 +1,6 @@
 {
 	"name": "ruoka",
-	"description": "Search Finnish grocery and alcohol products across K-Ruoka, S-Kaupat, and Alko via MCP",
+	"description": "Search Finnish groceries, prices and nutrition across K-Ruoka, S-Kaupat and published Lidl products",
 	"version": "0.2.0",
 	"author": {
 		"name": "p18a"

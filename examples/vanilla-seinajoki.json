@@ -1,0 +1,12 @@
+{
+	"queries": ["vanilja"],
+	"includeTerms": ["jogurtti"],
+	"stores": [
+		{ "chain": "k-ruoka", "storeId": "N192" },
+		{ "chain": "s-kaupat", "storeId": "625910120" },
+		{ "chain": "s-kaupat", "storeId": "516242633" }
+	],
+	"rankBy": "total_sugar_then_price",
+	"maxDetailRequests": 100,
+	"limit": 10
+}
