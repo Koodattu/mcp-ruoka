@@ -89,9 +89,9 @@ export const NearbyInputSchema = z
 		coordinates: PointSchema.optional(),
 		radiusKm: z.number().positive().max(100).default(15),
 		chains: z
-			.array(z.enum(["k-ruoka", "s-kaupat"]))
+			.array(z.enum(["k-ruoka", "s-kaupat", "lidl"]))
 			.min(1)
-			.default(["k-ruoka", "s-kaupat"]),
+			.default(["k-ruoka", "s-kaupat", "lidl"]),
 		limit: z.number().int().min(1).max(100).default(30),
 	})
 	.strict()
@@ -142,7 +142,7 @@ export function locateNearby(stores: Store[], input: z.input<typeof NearbyInputS
 		unlocatedStoreCount: stores.length - located.length,
 		warnings: [
 			"Distances are straight-line estimates, not driving distances. Postal-area reference points can be far from an actual home or store; radius boundaries are approximate.",
-			"Lidl store discovery is not supported; Lidl published products have no verified local availability.",
+			"Lidl locations and offer regions do not establish local product prices or shelf availability.",
 		],
 		postalDataDate: postalData().postalDate,
 	};

@@ -14,12 +14,13 @@ export interface Product {
 export interface Store {
 	id: string;
 	name: string;
-	chain: Chain;
+	chain: Chain | "lidl";
 	location: string;
 	postalCode?: string | null;
 	address?: string | null;
 	coordinates?: { latitude: number; longitude: number } | null;
 	website?: string | null;
+	offerRegion?: { id: number; name: string };
 }
 
 export interface SearchResult {

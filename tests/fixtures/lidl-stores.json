@@ -1,0 +1,67 @@
+[
+	[1, 16],
+	{
+		"objectNumber": 2,
+		"objectType": 3,
+		"storeName": 4,
+		"address": 5,
+		"marketingData": 13
+	},
+	"FI00173",
+	"STORE",
+	"Seinäjoki - Keskusta",
+	{
+		"streetName": 6,
+		"streetNumber": 7,
+		"city": 8,
+		"zip": 9,
+		"state": 10,
+		"longitude": 11,
+		"latitude": 12
+	},
+	"Verkatehtaankatu",
+	"12",
+	"Seinäjoki",
+	"60100",
+	"Etelä-Pohjanmaa",
+	22.83085,
+	62.79481,
+	{
+		"offerRegion": 14,
+		"offerRegionName": 15
+	},
+	6,
+	"Laukaa",
+	{
+		"objectNumber": 17,
+		"objectType": 18,
+		"storeName": 19,
+		"address": 20,
+		"marketingData": 28
+	},
+	"FI00301",
+	"STORE",
+	"Seinäjoki - Kapernaumi",
+	{
+		"streetName": 21,
+		"streetNumber": 22,
+		"city": 23,
+		"zip": 24,
+		"state": 25,
+		"longitude": 26,
+		"latitude": 27
+	},
+	"Tehtaantie 4 B",
+	null,
+	"Seinäjoki",
+	"60100",
+	"Etelä-Pohjanmaa",
+	22.88122,
+	62.79087,
+	{
+		"offerRegion": 29,
+		"offerRegionName": 30
+	},
+	6,
+	"Laukaa"
+]

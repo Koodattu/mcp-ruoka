@@ -1,6 +1,13 @@
 {
 	"queries": ["vanilja"],
-	"includeTerms": ["jogurtti"],
+	"productKind": "yogurt",
+	"vanillaOnly": true,
+	"manufacturerSources": [
+		{
+			"gtin": "6413300024074",
+			"url": "https://www.arla.fi/tuotteet/aamuplus/ab-vaniljajogurtti-laktoositon-175g-686853/"
+		}
+	],
 	"stores": [
 		{ "chain": "k-ruoka", "storeId": "N192" },
 		{ "chain": "s-kaupat", "storeId": "625910120" },

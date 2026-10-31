@@ -1,12 +1,21 @@
 import * as z from "zod/v4";
 import { PointSchema } from "./geography.ts";
 import type { GroceryProduct, GrocerySearchResult } from "./grocery-types.ts";
+import {
+	type ManufacturerLabel,
+	type ManufacturerSource,
+	ManufacturerSourceSchema,
+} from "./manufacturer.ts";
+import { matchesCriteria, normalizeText as normalize } from "./matching.ts";
 import { assessNutrition, mergeNutrition, type NutritionAssessment } from "./nutrition.ts";
 import { StoreSelectionSchema } from "./preferences.ts";
 
 export const CompareInputSchema = z
 	.object({
 		queries: z.array(z.string().trim().min(1).max(100)).min(1).max(5),
+		productKind: z.enum(["yogurt", "quark", "pudding"]).optional(),
+		vanillaOnly: z.boolean().default(false),
+		manufacturerSources: z.array(ManufacturerSourceSchema).max(20).default([]),
 		includeTerms: z.array(z.string().trim().min(1)).max(10).default([]),
 		excludeTerms: z.array(z.string().trim().min(1)).max(20).default([]),
 		stores: z.array(StoreSelectionSchema).min(1).max(20).optional(),
@@ -27,6 +36,7 @@ export const CompareInputSchema = z
 		maxSugarGPer100g: z.number().nonnegative().max(100).optional(),
 		maxPagesPerQuery: z.number().int().min(1).max(20).default(10),
 		maxDetailRequests: z.number().int().min(1).max(300).default(120),
+		maxDurationSeconds: z.number().int().min(1).max(600).default(120),
 		limit: z.number().int().min(1).max(50).default(10),
 	})
 	.strict()
@@ -38,6 +48,7 @@ export const CompareInputSchema = z
 export type ComparisonInput = z.input<typeof CompareInputSchema>;
 type Selection = z.infer<typeof StoreSelectionSchema>;
 export interface ComparisonClient {
+	manufacturerLabel?(input: ManufacturerSource): Promise<ManufacturerLabel>;
 	search(input: {
 		chain: "k-ruoka" | "s-kaupat" | "lidl";
 		storeId?: string;
@@ -72,6 +83,7 @@ export interface ComparedProduct {
 	nutrition: NutritionAssessment;
 	source: GroceryProduct["source"];
 	labelSources: GroceryProduct["source"][];
+	supplementaryLabels: ManufacturerLabel[];
 	offers: Array<{
 		chain: string;
 		storeId: string | null;
@@ -87,11 +99,6 @@ export interface ComparedProduct {
 	bestPricePerKg: number | null;
 	exclusions: string[];
 }
-const normalize = (text: string) =>
-	text
-		.toLocaleLowerCase("fi")
-		.normalize("NFD")
-		.replace(/\p{Diacritic}/gu, "");
 export function matchesProduct(product: GroceryProduct, include: string[], exclude: string[]) {
 	const text = normalize(`${product.name} ${product.brand ?? ""}`);
 	return (
@@ -140,8 +147,15 @@ export async function runComparison(
 	input: ComparisonInput,
 	selections: Array<Selection & { name?: string }>,
 	client: ComparisonClient,
+	startedAt = Date.now(),
 ) {
 	const options = CompareInputSchema.parse(input);
+	let stoppedForTimeBudget = false;
+	const exhausted = () => {
+		if (Date.now() - startedAt < options.maxDurationSeconds * 1000) return false;
+		stoppedForTimeBudget = true;
+		return true;
+	};
 	const targets: Array<{
 		chain: "k-ruoka" | "s-kaupat" | "lidl";
 		storeId?: string;
@@ -169,6 +183,11 @@ export async function runComparison(
 			let offset = 0;
 			try {
 				for (let page = 0; page < options.maxPagesPerQuery; page++) {
+					if (exhausted()) {
+						report.status = "truncated";
+						report.error = "Comparison time budget exhausted before the next page";
+						break;
+					}
 					const result = await client.search({
 						chain: target.chain,
 						storeId: target.storeId,
@@ -184,7 +203,10 @@ export async function runComparison(
 					for (const product of result.products) {
 						if (product.chain !== target.chain || product.storeId !== (target.storeId ?? null))
 							throw new Error("Search product belongs to a different retailer or store");
-						if (matchesProduct(product, options.includeTerms, options.excludeTerms)) {
+						if (
+							matchesProduct(product, options.includeTerms, options.excludeTerms) &&
+							matchesCriteria(product, options)
+						) {
 							candidates.set(product.id, product);
 							report.matched++;
 						}
@@ -218,7 +240,10 @@ export async function runComparison(
 		id: string;
 		error: string;
 	}> = [];
+	let detailsAttempted = 0;
 	for (const summary of pending.slice(0, options.maxDetailRequests)) {
+		if (exhausted()) break;
+		detailsAttempted++;
 		try {
 			const product = await client.detail({
 				chain: summary.chain,
@@ -231,7 +256,11 @@ export async function runComparison(
 				product.id !== summary.id
 			)
 				throw new Error("Detail returned a different product/store");
-			if (!matchesProduct(product, options.includeTerms, options.excludeTerms)) continue;
+			if (
+				!matchesProduct(product, options.includeTerms, options.excludeTerms) ||
+				!matchesCriteria(product, options)
+			)
+				continue;
 			const key =
 				product.gtins.length === 1 ? `gtin:${product.gtins[0]}` : `${product.chain}:${product.id}`;
 			const nutrition = assessNutrition(product);
@@ -246,6 +275,7 @@ export async function runComparison(
 					nutrition,
 					source: product.source,
 					labelSources: [],
+					supplementaryLabels: [],
 					offers: [],
 					bestPricePerKg: null,
 					exclusions: [],
@@ -274,6 +304,46 @@ export async function runComparison(
 				chain: summary.chain,
 				storeId: summary.storeId,
 				id: summary.id,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+	const labelEnrichmentFailures: Array<{ gtin: string; url: string; error: string }> = [];
+	let labelEnrichmentsAttempted = 0;
+	for (const reference of options.manufacturerSources) {
+		const group = groups.get(`gtin:${reference.gtin}`);
+		if (!group) {
+			warnings.add(
+				`Manufacturer source for ${reference.gtin} was unused: no matching single-GTIN product was retrieved.`,
+			);
+			continue;
+		}
+		if (exhausted()) {
+			labelEnrichmentFailures.push({
+				...reference,
+				error: "Comparison time budget exhausted before manufacturer enrichment",
+			});
+			continue;
+		}
+		labelEnrichmentsAttempted++;
+		try {
+			if (!client.manufacturerLabel) throw new Error("Manufacturer enrichment is unavailable");
+			const label = await client.manufacturerLabel(reference);
+			if (label.gtin !== reference.gtin) throw new Error("Manufacturer returned a different GTIN");
+			assessments.get(group.key)?.push(
+				assessNutrition({
+					name: "",
+					description: null,
+					claims: [],
+					ingredients: label.ingredients,
+					nutrition: label.nutrition,
+				}),
+			);
+			group.labelSources.push(label.source);
+			group.supplementaryLabels.push(label);
+		} catch (error) {
+			labelEnrichmentFailures.push({
+				...reference,
 				error: error instanceof Error ? error.message : String(error),
 			});
 		}
@@ -327,11 +397,19 @@ export async function runComparison(
 			);
 		});
 	const complete =
+		!stoppedForTimeBudget &&
 		coverage.every((c) => c.status === "complete") &&
+		labelEnrichmentFailures.length === 0 &&
 		detailFailures.length === 0 &&
 		pending.length <= options.maxDetailRequests;
 	return {
 		rankBy: options.rankBy,
+		matching: {
+			productKind: options.productKind ?? null,
+			vanillaOnly: options.vanillaOnly,
+			basis:
+				"Product-name vocabulary in Finnish, Swedish and English; unknown flavours and unconventional names can still be missed. This is not an exhaustive category classification.",
+		},
 		rankingExplanation:
 			options.rankBy === "no_added_sugar_then_price"
 				? "Products with a supported no-added-sugar claim, ordered by lowest observed local EUR/kg. Unknown added-sugar quantities are not ranked as zero."
@@ -345,10 +423,19 @@ export async function runComparison(
 		matchedProductGroups: groups.size,
 		eligibleProductGroups: ranked.length,
 		coverage: {
+			timeBudget: {
+				maxDurationSeconds: options.maxDurationSeconds,
+				elapsedMs: Date.now() - startedAt,
+				stoppedForTimeBudget,
+				enforcement:
+					"Checked between requests; an in-flight request finishes or reaches its own timeout.",
+			},
+			labelEnrichmentsAttempted,
+			labelEnrichmentFailures,
 			searches: coverage,
 			candidateOffers: pending.length,
-			detailsAttempted: Math.min(pending.length, options.maxDetailRequests),
-			detailsSkipped: Math.max(0, pending.length - options.maxDetailRequests),
+			detailsAttempted,
+			detailsSkipped: pending.length - detailsAttempted,
 			detailFailures,
 			completeForRequestedSearches: complete,
 			completeMarketCoverage: false,

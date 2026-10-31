@@ -12,6 +12,7 @@ test("retry delays honor seconds and HTTP dates without accepting malformed valu
 
 test("transport retries a transient response, rejects HTTP errors, and serializes a retailer", async (t) => {
 	let retries = 0;
+	let dropped = 0;
 	let requests = 0;
 	let active = 0;
 	let maximum = 0;
@@ -20,7 +21,9 @@ test("transport retries a transient response, rejects HTTP errors, and serialize
 		active++;
 		maximum = Math.max(maximum, active);
 		setTimeout(() => {
-			if (req.url === "/retry" && retries++ === 0) {
+			if (req.url === "/drop" && dropped++ === 0) {
+				res.destroy();
+			} else if (req.url === "/retry" && retries++ === 0) {
 				res.writeHead(503);
 				res.end("temporary");
 			} else if (req.url === "/missing") {
@@ -46,6 +49,8 @@ test("transport retries a transient response, rejects HTTP errors, and serialize
 	try {
 		assert.deepEqual(await requestJson(new URL("/retry", origin), origin), { ok: true });
 		assert.equal(retries, 2);
+		assert.deepEqual(await requestJson(new URL("/drop", origin), origin), { ok: true });
+		assert.equal(dropped, 2);
 		await Promise.all([
 			requestJson(new URL("/a", origin), origin),
 			requestJson(new URL("/b", origin), origin),

@@ -57,7 +57,9 @@ const names: Record<string, keyof NutritionAssessment["per100g"]> = {
 	energia: "energyKcal",
 };
 
-export function assessNutrition(product: GroceryProduct): NutritionAssessment {
+export function assessNutrition(
+	product: Pick<GroceryProduct, "name" | "description" | "claims" | "ingredients" | "nutrition">,
+): NutritionAssessment {
 	const result: NutritionAssessment = {
 		per100g: {
 			sugars: null,

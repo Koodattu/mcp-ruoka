@@ -11,14 +11,21 @@ import {
 	type GroceryProduct,
 	type GrocerySearchResult,
 } from "./grocery-types.ts";
+import { observeProvider } from "./health.ts";
+import { getLidlStores } from "./lidl-discovery.ts";
+import { getManufacturerLabel } from "./manufacturer.ts";
 import { assessNutrition, type NutritionAssessment } from "./nutrition.ts";
+import { getObservationStore } from "./observations.ts";
 import { getPreferences, type PreferencesSchema } from "./preferences.ts";
+import { GroceryProductSchema, GrocerySearchSchema } from "./product-schema.ts";
 import type { Store } from "./types.ts";
 
 export { closeBrowser } from "./browser/session.ts";
 export { CompareInputSchema } from "./comparison.ts";
 export { NearbyInputSchema } from "./geography.ts";
 export type { GroceryProduct, GrocerySearchResult } from "./grocery-types.ts";
+export { getProviderHealth } from "./health.ts";
+export { getPriceHistory, HistoryInputSchema } from "./observations.ts";
 export { getPreferences, PreferencesSchema, setPreferences } from "./preferences.ts";
 
 const StoreInput = { chain: GroceryChainSchema, storeId: z.string().trim().min(1).optional() };
@@ -63,8 +70,9 @@ export function resolveStore(
 	return id;
 }
 
-const searchCache = memoizedLookup<GrocerySearchResult>(60_000);
-const productCache = memoizedLookup<GroceryProduct>(5 * 60_000);
+// Only deduplicate in-flight work here; SQLite owns expiry across process restarts.
+const searchCache = memoizedLookup<GrocerySearchResult>(0);
+const productCache = memoizedLookup<GroceryProduct>(0);
 const storeCache = memoizedLookup<Store[]>(60 * 60_000, 30);
 
 export async function searchProducts(
@@ -72,10 +80,35 @@ export async function searchProducts(
 ): Promise<GrocerySearchResult> {
 	const { chain, query, storeId: supplied, limit, offset } = SearchInputSchema.parse(input);
 	const storeId = resolveStore(chain, supplied, process.env, getPreferences().defaultStores);
-	const result = await searchCache(JSON.stringify([chain, storeId, query, limit, offset]), () => {
-		if (chain === "lidl") return lidl.searchProducts(query, limit, offset);
-		if (!storeId) throw new Error("Store required");
-		return (chain === "k-ruoka" ? kRuoka : sKaupat).searchProducts(query, storeId, limit, offset);
+	const key = JSON.stringify(["search", chain, storeId, query, limit, offset]);
+	const result = await searchCache(key, async () => {
+		const db = await getObservationStore();
+		const cached = db.readCache(
+			key,
+			GrocerySearchSchema.refine(
+				(r) =>
+					r.chain === chain && r.storeId === storeId && r.query === query && r.offset === offset,
+			),
+		);
+		if (cached) return cached;
+		const validated = await observeProvider(chain, async () => {
+			const loaded =
+				chain === "lidl"
+					? await lidl.searchProducts(query, limit, offset)
+					: storeId
+						? await (chain === "k-ruoka" ? kRuoka : sKaupat).searchProducts(
+								query,
+								storeId,
+								limit,
+								offset,
+							)
+						: null;
+			if (!loaded) throw new Error("Store required");
+			return GrocerySearchSchema.parse(loaded);
+		});
+		db.record(validated.products, "search");
+		db.writeCache(key, validated, Date.now() + 60_000);
+		return validated;
 	});
 	result.products = result.products.map((product) => applyPriceValidity(product));
 	return result;
@@ -86,21 +119,40 @@ export async function getProduct(
 ): Promise<GroceryProduct & { nutritionAssessment: NutritionAssessment }> {
 	const { chain, id, storeId: supplied } = ProductInputSchema.parse(input);
 	const storeId = resolveStore(chain, supplied, process.env, getPreferences().defaultStores);
-	const product = await productCache(JSON.stringify([chain, storeId, id]), () => {
-		if (chain === "lidl") return lidl.getProduct(id);
-		if (!storeId) throw new Error("Store required");
-		return (chain === "k-ruoka" ? kRuoka : sKaupat).getProduct(id, storeId);
+	const key = JSON.stringify(["detail", chain, storeId, id]);
+	const product = await productCache(key, async () => {
+		const db = await getObservationStore();
+		const cached = db.readCache(
+			key,
+			GroceryProductSchema.refine((p) => p.chain === chain && p.storeId === storeId && p.id === id),
+		);
+		if (cached) return cached;
+		const validated = await observeProvider(chain, async () => {
+			const loaded =
+				chain === "lidl"
+					? await lidl.getProduct(id)
+					: storeId
+						? await (chain === "k-ruoka" ? kRuoka : sKaupat).getProduct(id, storeId)
+						: null;
+			if (!loaded) throw new Error("Store required");
+			return GroceryProductSchema.parse(loaded);
+		});
+		db.record([validated], "detail");
+		db.writeCache(key, validated, Date.parse(validated.source.fetchedAt) + 5 * 60_000);
+		return validated;
 	});
 	return { ...applyPriceValidity(product), nutritionAssessment: assessNutrition(product) };
 }
 
 export async function getStores(input: z.input<typeof StoresInputSchema> = {}) {
 	const { chain, city } = StoresInputSchema.parse(input);
-	if (chain === "lidl")
-		throw new Error("Lidl store selection is not supported by the published catalog adapter.");
-	const chains = chain ? [chain] : (["k-ruoka", "s-kaupat"] as const);
+	const chains = chain ? [chain] : (["k-ruoka", "s-kaupat", "lidl"] as const);
 	const results = await Promise.allSettled(
-		chains.map((c) => storeCache(c, () => (c === "k-ruoka" ? kRuoka : sKaupat).getStores())),
+		chains.map((c) =>
+			c === "lidl"
+				? getLidlStores(city)
+				: storeCache(c, () => (c === "k-ruoka" ? kRuoka : sKaupat).getStores()),
+		),
 	);
 	const stores: Store[] = [];
 	const warnings: string[] = [];
@@ -161,6 +213,7 @@ export function resolveComparisonInput(
 }
 
 export async function compareProducts(input: ComparisonInput) {
+	const startedAt = Date.now();
 	const options = resolveComparisonInput(input, getPreferences());
 	let stores: Array<{ chain: "k-ruoka" | "s-kaupat"; storeId: string; name?: string }> =
 		options.stores ?? [];
@@ -171,6 +224,7 @@ export async function compareProducts(input: ComparisonInput) {
 				"Choose stores, provide a postalCode/coordinates, or save preferences before comparing products.",
 			);
 		discovery = await getNearbyStores({
+			chains: ["k-ruoka", "s-kaupat"],
 			postalCode: options.postalCode,
 			coordinates: options.coordinates,
 			radiusKm: options.radiusKm,
@@ -199,10 +253,16 @@ export async function compareProducts(input: ComparisonInput) {
 			}
 		}
 	}
-	const result = await runComparison(options, stores, {
-		search: searchProducts,
-		detail: getProduct,
-	});
+	const result = await runComparison(
+		options,
+		stores,
+		{
+			search: searchProducts,
+			detail: getProduct,
+			manufacturerLabel: getManufacturerLabel,
+		},
+		startedAt,
+	);
 	return {
 		...result,
 		selectedStores: stores,
@@ -242,6 +302,9 @@ export function getCapabilities() {
 			},
 			{
 				chain: "lidl",
+				storeDiscovery: true,
+				leaflets:
+					"Published page search, PDF links and offer-region metadata; no structured leaflet prices or verified local stock",
 				defaultStore: null,
 				storeSelection: false,
 				nutrition: "label text when published; supported bilingual bakery tables normalized",
@@ -250,6 +313,12 @@ export function getCapabilities() {
 			},
 		],
 		cacheSeconds: { search: 60, product: 300, stores: 3600, lidlIndex: 3600 },
+		persistentObservations:
+			"SQLite search/detail cache, historical store-price observations and label versions. Historical prices are only returned through get_price_history; expired prices never become live fallbacks.",
+		manufacturerEnrichment:
+			"Arla/Valio Finland nutrition and ingredients with exact GTIN verification. discover_manufacturer_label searches official sitemaps within a candidate budget, including Valio package variants. Labels cached up to 24 hours; discovered URLs can be supplied to compare_products.",
+		providerHealth:
+			"Live search/detail loads in this process, excluding cache hits; available through get_provider_health.",
 		nearbyStores:
 			"Postal code or coordinates; municipality aliases supported; S-store distances use postal reference points when exact coordinates are absent.",
 		comparison:

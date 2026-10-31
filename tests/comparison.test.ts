@@ -41,6 +41,56 @@ const stores = [
 ] as const;
 const label = { description: "Ei lisättyä sokeria", ingredients: "MAITO, vanilja" };
 
+test("time budget stops new detail work and reports skipped offers instead of a complete comparison", async (t) => {
+	let time = 0;
+	t.mock.method(Date, "now", () => time);
+	const client = clientFor([product(label)]);
+	const search = client.search;
+	client.search = async (input) => {
+		const result = await search(input);
+		time = 2000;
+		return result;
+	};
+	const result = await runComparison(
+		{ queries: ["vanilja"], includeLidl: false, maxDurationSeconds: 1 },
+		[stores[0]],
+		client,
+	);
+	assert.equal(result.coverage.timeBudget.stoppedForTimeBudget, true);
+	assert.equal(result.coverage.detailsAttempted, 0);
+	assert.equal(result.coverage.detailsSkipped, 1);
+	assert.equal(result.coverage.completeForRequestedSearches, false);
+});
+
+test("explicit manufacturer evidence fills missing nutrients, while mismatched GTINs cannot affect ranking", async () => {
+	const p = product();
+	const client = clientFor([p]);
+	const reference = { gtin: p.gtins[0] ?? "", url: "https://www.arla.fi/tuotteet/test/" };
+	client.manufacturerLabel = async () => ({
+		gtin: reference.gtin,
+		ingredients: "MAITO",
+		nutrition: [
+			{ basis: "100 g", preparation: null, values: [{ name: "sugars", value: "8.2 g" }] },
+		],
+		source: { url: reference.url, fetchedAt: new Date().toISOString() },
+	});
+	const input = {
+		queries: ["vanilja"],
+		includeLidl: false,
+		rankBy: "total_sugar_then_price" as const,
+		manufacturerSources: [reference],
+	};
+	const enriched = await runComparison(input, [stores[0]], client);
+	assert.equal(enriched.ranked[0]?.nutrition.per100g.sugars, 8.2);
+	assert.equal(enriched.ranked[0]?.supplementaryLabels[0]?.source.url, reference.url);
+	const fetchLabel = client.manufacturerLabel;
+	client.manufacturerLabel = async (input) => ({ ...(await fetchLabel(input)), gtin: "different" });
+	const rejected = await runComparison(input, [stores[0]], client);
+	assert.equal(rejected.ranked.length, 0);
+	assert.equal(rejected.coverage.labelEnrichmentFailures.length, 1);
+	assert.equal(rejected.coverage.completeForRequestedSearches, false);
+});
+
 test("comparison paginates, deduplicates GTINs across stores, and never ranks missing added sugar as zero", async () => {
 	const s = product(label);
 	const k = product({ ...label, chain: "k-ruoka", storeId: "N1", price: 1.5, pricePerKg: 1.5 });

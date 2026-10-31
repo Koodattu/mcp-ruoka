@@ -16,7 +16,7 @@ export function registerStoresTool(server: McpServer): void {
 		"get_nearby_stores",
 		{
 			description:
-				"Find K/S stores near a Finnish postal code or coordinates, ordered by straight-line distance. Postal reference points are approximate and may affect radius boundaries. Returns distance precision, excluded/unlocated counts and truncation; Lidl is unsupported.",
+				"Find K/S/Lidl stores near a Finnish postal code or coordinates, ordered by straight-line distance. Postal reference points are approximate. Returns distance precision, excluded/unlocated counts and truncation. Lidl includes offer regions, but store-specific product prices/stock remain unsupported. Initial nationwide Lidl discovery can take several minutes; public directory pages are cached 24 hours.",
 			inputSchema: NearbyInputSchema,
 		},
 		(input) => toolResult(() => getNearbyStores(input)),
@@ -42,7 +42,7 @@ export function registerStoresTool(server: McpServer): void {
 		"get_stores",
 		{
 			description:
-				"Find K-Ruoka and S-Kaupat stores by city. Includes K-Market, K-Supermarket, K-Citymarket, Prisma, S-market and other S stores. Returns IDs for search_products/get_product; Lidl store selection is unsupported.",
+				"Find K, S and Lidl stores by city. K/S IDs work with search_products/get_product. Lidl IDs work with get_lidl_leaflets, but do not enable store-specific product prices or stock. Provide city for faster Lidl discovery.",
 			inputSchema: StoresInputSchema,
 		},
 		(input) => toolResult(() => getStores(input)),

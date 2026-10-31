@@ -13,6 +13,14 @@ import {
 	setPreferences,
 } from "./groceries.ts";
 import { GroceryChainSchema } from "./grocery-types.ts";
+import { getProviderHealth } from "./health.ts";
+import { getLidlLeaflets } from "./lidl-discovery.ts";
+import {
+	discoverManufacturerLabel,
+	getManufacturerLabel,
+	ManufacturerDiscoverySchema,
+} from "./manufacturer.ts";
+import { getPriceHistory } from "./observations.ts";
 import { PreferencesSchema } from "./preferences.ts";
 
 try {
@@ -35,6 +43,10 @@ try {
 			"rank-by": { type: "string" },
 			"max-stores": { type: "string" },
 			input: { type: "string" },
+			since: { type: "string" },
+			url: { type: "string" },
+			"product-kind": { type: "string" },
+			"vanilla-only": { type: "boolean" },
 		},
 	});
 	const chain = values.chain ? GroceryChainSchema.parse(values.chain) : undefined;
@@ -48,11 +60,30 @@ try {
 		? JSON.parse(await readFile(values.input, "utf8"))
 		: undefined;
 	if (command === "capabilities") result = getCapabilities();
+	else if (command === "health") result = getProviderHealth();
+	else if (command === "discover-manufacturer" && jsonInput)
+		result = await discoverManufacturerLabel(ManufacturerDiscoverySchema.parse(jsonInput));
+	else if (command === "leaflets")
+		result = await getLidlLeaflets({
+			storeId: values.store,
+			city: values.city,
+			query: values.query,
+			limit: values.limit ? Number(values.limit) : undefined,
+		});
+	else if (command === "manufacturer" && values.id && values.url)
+		result = await getManufacturerLabel({ gtin: values.id, url: values.url });
+	else if (command === "history" && chain && values.id)
+		result = await getPriceHistory({
+			chain,
+			id: values.id,
+			storeId: values.store,
+			since: values.since,
+			limit: values.limit ? Number(values.limit) : undefined,
+		});
 	else if (command === "preferences") result = getPreferences();
 	else if (command === "configure" && jsonInput)
 		result = await setPreferences(PreferencesSchema.parse(jsonInput));
 	else if (command === "nearby") {
-		if (chain === "lidl") throw new Error("Lidl store discovery is not supported.");
 		result = await getNearbyStores({
 			postalCode: values["postal-code"],
 			coordinates,
@@ -65,6 +96,8 @@ try {
 			CompareInputSchema.parse(
 				jsonInput ?? {
 					queries: values.query ? [values.query] : undefined,
+					productKind: values["product-kind"],
+					vanillaOnly: values["vanilla-only"],
 					postalCode: values["postal-code"],
 					coordinates,
 					radiusKm: values.radius ? Number(values.radius) : undefined,
@@ -89,7 +122,7 @@ try {
 		result = await getProduct({ chain, id: values.id, storeId: values.store });
 	else
 		throw new Error(
-			"Usage: cli.ts capabilities | preferences | configure --input JSON_FILE | nearby --postal-code CODE [--radius KM] | compare --input JSON_FILE | compare --postal-code CODE --query TEXT [--include TERM] [--rank-by total_sugar_then_price] | stores [--chain CHAIN] [--city CITY] | search --chain CHAIN --query TEXT [--store ID] | product --chain CHAIN --id ID [--store ID]",
+			"Usage: cli.ts capabilities | health | history --chain CHAIN --id ID [--store ID] [--since ISO_TIMESTAMP] | manufacturer --id GTIN --url PRODUCT_URL | discover-manufacturer --input JSON_FILE | leaflets [--store FI00173 --city Seinäjoki] [--query TEXT] | preferences | configure --input JSON_FILE | nearby --postal-code CODE [--radius KM] | compare --input JSON_FILE | compare --postal-code CODE --query TEXT [--product-kind yogurt] [--vanilla-only] [--rank-by total_sugar_then_price] | stores [--chain CHAIN] [--city CITY] | search --chain CHAIN --query TEXT [--store ID] | product --chain CHAIN --id ID [--store ID]",
 		);
 	process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 } catch (error) {

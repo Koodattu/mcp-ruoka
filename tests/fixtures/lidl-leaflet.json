@@ -1,0 +1,36 @@
+{
+	"success": true,
+	"flyer": {
+		"id": "01a15e94-7176-710e-9202-4878161c9dc4",
+		"name": "Koko Suomen tarjoukset",
+		"title": "to 29.10. – su 1.11.",
+		"countryCode": "FI",
+		"isActive": true,
+		"pdfUrl": "https://assets.leaflets.schwarz/leaflets/pdfs/01a15e94-7176-710e-9202-4878161c9dc4/Koko-Suomen-tarjoukset-to-29-10-su-1-11-00.pdf",
+		"flyerUrlAbsolute": "https://www.lidl.fi/l/fi/tarjouslehdet/koko-suomen-tarjoukset-to-29-10-su-1-11/ar/0",
+		"startDate": "2026-10-26",
+		"endDate": "2026-11-01",
+		"offerStartDate": "2026-10-29",
+		"offerEndDate": "2026-11-01",
+		"regions": [
+			{
+				"code": "0"
+			}
+		],
+		"products": [],
+		"pages": [
+			{
+				"number": 1,
+				"keyWords": "-32% Kotimainen Kirsikka- Tomaatti 676 Fazer Suklaakonvehtirasia Erilaisia 1600 Hinta 585 € Erä Korvapuusti Paistopisteestä Vegaaninen 428 089 Kanamestari Kanan Filee- Pihvi Xxl Maustamaton 15 Max &Amp Mila's World Kissan Juhla- Pateelajitelma 440 Herkkutahna 1036 Lidl Plus -Äpillä Kpl -25% Reilu Karjalanpaisti 856 -33% -34% -31% Hätälä Lohifilee A-Leikattu Alkuperämaa Norja Halvat Makuja Myymälässä – Loppuviikon Tarjoukset Erätuotteita Saatavilla Tavaraa V1Janlaujär",
+				"altText": "Lidlin loppuviikon tarjouksia, kuten kirsikkatomaatteja, Fazerin suklaakonvehteja, korvapuusteja ja lohifileetä.",
+				"image": "https://imgproxy.leaflets.schwarz/jVoYJZoAOcurvMPEYPB7FeSdxhUXNmBh12GJsrYHwPE/rs:fit:1200:1200:1/g:no/czM6Ly9sZWFmbGV0cy9pbWFnZXMvMDFhMTVlOTQtNzE3Ni03MTBlLTkyMDItNDg3ODE2MWM5ZGM0L3BhZ2UtMDFfMjM4OGM5YjE4M2I3ZGJmZjQzNjIyYzI1MDFiMGUwYWQucG5n.jpg"
+			},
+			{
+				"number": 22,
+				"keyWords": "Milbona Laktoositon Kreikkalainen Jogurtti Erilaisia 660 Freshona Hedelmäsose 790 Sportyfeel Bcaa-Juoma Sour Apple 033 255 Hinta Pantin Myllykivi Kaurahiutale 097 Kinkku- Juusto- Croissant Paistopisteestä 895 Mieto Maito- Rahka 380 Pohjolan Meijeri Rasvaton Maito 085 Halpa Digi – V1Jan_V2Lau_V3Jär Lue",
+				"altText": "Lidlin edullisia perustuotteita arkeen, kuten laktoositonta kreikkalaista jogurttia, kaurahiutaleita ja maitoa.",
+				"image": "https://imgproxy.leaflets.schwarz/EfThaKDRMy0hvuBY1P2TMNPlpP6L6gCcEpmbteQ0wFY/rs:fit:1200:1200:1/g:no/czM6Ly9sZWFmbGV0cy9pbWFnZXMvMDFhMTVlOTQtNzE3Ni03MTBlLTkyMDItNDg3ODE2MWM5ZGM0L3BhZ2UtMjJfNjA4YjVmMzdlODc0MWY3ZWM3NDBkM2RmMTA1ZjkyZjEucG5n.jpg"
+			}
+		]
+	}
+}

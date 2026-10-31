@@ -55,7 +55,7 @@ Example MCP client configuration for this checkout:
 }
 ```
 
-Tools: `get_capabilities`, `get_stores`, `get_nearby_stores`, `search_products`, `get_product`, `compare_products`, `get_preferences`, `set_preferences`. Successful tools return both JSON text and MCP `structuredContent`. Errors set `isError`. Store lookup and comparison can return partial results with explicit failure reports; always inspect their coverage and warnings.
+Tools: `get_capabilities`, `get_stores`, `get_nearby_stores`, `search_products`, `get_product`, `compare_products`, `get_preferences`, `set_preferences`, `get_price_history`, `get_manufacturer_label`, `discover_manufacturer_label`, `get_lidl_leaflets`, `get_provider_health`. Successful tools return both JSON text and MCP `structuredContent`. Errors set `isError`. Store lookup and comparison can return partial results with explicit failure reports; always inspect their coverage and warnings.
 
 `get_stores` now returns `{ stores, warnings }`. Search has pagination and coverage metadata, and products have additional structured fields. Existing clients that assumed the original array-only store response need updating.
 
@@ -67,11 +67,13 @@ node src/cli.ts stores --city Seinäjoki
 node src/cli.ts compare --input examples/vanilla-seinajoki.json
 ```
 
-The postal lookup includes municipality aliases: Prisma Seinäjoki is found even though its postal locality is Hyllykallio. K store coordinates are used when supplied. S stores currently fall back to their postal-area reference points. Distances are straight-line estimates; the response labels both origin and store precision. A postal-area point is not a home address, so radius boundaries are approximate. Use coordinates for a more accurate starting point. See [postal data provenance and regeneration](data/README.md).
+The postal lookup includes municipality aliases: Prisma Seinäjoki is found even though its postal locality is Hyllykallio. K/Lidl store coordinates are used when supplied. S stores currently fall back to their postal-area reference points. Distances are straight-line estimates; the response labels both origin and store precision. A postal-area point is not a home address, so radius boundaries are approximate. Use coordinates for a more accurate starting point. See [postal data provenance and regeneration](data/README.md).
 
-The example compares K-Citymarket Ideapark, S-market Kivistö and Prisma Seinäjoki, and checks Lidl's partial published catalog. It searches `vanilja` and keeps product names containing `jogurtti`; this can include fruit/vanilla blends. Use `excludeTerms` to exclude unwanted flavours, and additional `queries` to broaden retailer-specific wording. Search terms do not constitute a complete category classifier.
+Nearby discovery includes Lidl by default; `chains` can restrict the lookup. Lidl IDs such as `FI00173` identify locations and offer regions for leaflet lookup, **not** selected-store product search. Its first nationwide refresh reads the public city directories with two concurrent loads (about 29 seconds in the live check); pages are cached for 24 hours. Provide `city` to `get_stores` for a smaller lookup. A directory/schema failure is reported through warnings rather than silently claiming complete coverage.
 
-`compare_products` accepts explicit `stores`, or `postalCode`/`coordinates` with `radiusKm`. Nearby comparison defaults to the nearest **6** stores, with an explicit warning when others are omitted; increase `maxStores` (up to 20), or select stores from `get_nearby_stores`. It follows pagination, retrieves labels, groups matching single GTINs across stores and returns offers with store names, prices, conditions and source timestamps. Multi-GTIN Lidl pages are not assumed to identify one exact product.
+The example compares K-Citymarket Ideapark, S-market Kivistö and Prisma Seinäjoki, and checks Lidl's partial published catalog. It searches `vanilja` with `productKind: "yogurt"` and `vanillaOnly: true`. Product-kind matching distinguishes yogurt (including recognized plant alternatives), quark/rahka and pudding; yogurt excludes quark blends and frozen yogurt. The vanilla filter excludes recognized fruit/chocolate/other blends, including lingonberry–vanilla. Matching uses product-name vocabulary in Finnish, Swedish and English and is not an exhaustive classifier. Query translation is not automatic; supply additional `queries` and `includeTerms`/`excludeTerms` where needed.
+
+`compare_products` accepts explicit `stores`, or `postalCode`/`coordinates` with `radiusKm`. Nearby comparison defaults to the nearest **6 K/S stores**, with an explicit warning when others are omitted; increase `maxStores` (up to 20), or select stores from `get_nearby_stores`. It follows pagination, retrieves labels, groups matching single GTINs across stores and returns offers with store names, prices, conditions and source timestamps. Multi-GTIN Lidl pages are not assumed to identify one exact product.
 
 Ranking options:
 
@@ -83,7 +85,33 @@ Ranking options:
 
 K loyalty and multipack offers retain their eligibility, dates, price, unit price and purchase quantity. Comparison uses them only with `includeLoyaltyPrices` and/or `allowMultipacks` enabled, and only when eligibility and validity are known. Offers' `price` can therefore be a bundle total; inspect `purchaseQuantity` and `selectedConditions`.
 
-Always inspect `coverage`: page/detail budgets, failed providers and skipped details are explicit. Defaults are 10 pages per store/query and 120 detail requests; details are interleaved across stores. `completeForRequestedSearches` means the requested search results were processed, not that every local product was found. `completeMarketCoverage` is always false. Lidl published prices cannot win a local-store price ranking because local availability is unverified.
+Always inspect `coverage`: page/detail budgets, failed providers and skipped details are explicit. Defaults are 10 pages per store/query, 120 detail requests and a 120-second work budget (`maxDurationSeconds`, up to 600). The time budget includes store discovery time but is enforced between product/label requests; an in-flight request finishes or reaches its own timeout, so this is not a hard cancellation deadline. Details are interleaved across stores. `completeForRequestedSearches` means the requested search results were processed, not that every local product was found. `completeMarketCoverage` is always false. Lidl published prices cannot win a local-store price ranking because local availability is unverified.
+
+## Manufacturer label enrichment
+
+The agent can call `discover_manufacturer_label` with `{ "manufacturer": "valio", "name": "Valiojogurtti vanilja laktoositon 200 g", "gtin": "6408430002665" }` to search the official manufacturer sitemap. Supports Arla and Valio; checks at most `maxCandidates` pages (default 5, maximum 10). Valio package links are followed within the same budget. Name similarity only selects candidates: a label is returned only after exact EAN verification. Misses retain attempted URLs/errors and do not prove absence.
+
+Call `get_manufacturer_label` with the discovered Arla/Valio URL and GTIN, or supply `manufacturerSources: [{ gtin, url }]` to `compare_products`. The example includes the official Arla Aamu+ AB vanilla 175 g page for EAN `6413300024074`, whose comparable nutrition was missing from the retailer result. Comparisons do not automatically initiate manufacturer discovery.
+
+Parsers require supported per-100-g nutrition tables. Results retain source URL/time, are cached for up to 24 hours, and appear as `supplementaryLabels` in comparisons. Conflicting nutrition remains unknown. Manufacturer data does not supply store prices or stock and does not overwrite retailer observations. Manufacturers beyond Arla/Valio and unsupported label layouts remain future work.
+
+```powershell
+node src/cli.ts manufacturer --id 6413300024074 --url https://www.arla.fi/tuotteet/aamuplus/ab-vaniljajogurtti-laktoositon-175g-686853/
+node src/cli.ts discover-manufacturer --input examples/valio-label.json
+```
+
+## Persistent observations and price history
+
+Successful searches and details now save local observations in `.ruoka-data/observations.sqlite` (ignored by Git and Docker). `RUOKA_DB_PATH` can select another path. SQLite uses the runtime's built-in module: `node:sqlite` on Node 24 and `bun:sqlite` on Bun; no new dependency is required. Node 24.4 emits its experimental SQLite notice on stderr.
+
+Search/detail caches survive process restarts without resetting expiry or observation timestamps. Expired entries are refreshed; a provider failure never silently returns an old price. Cached payloads are validated against their schema and requested product/store. Invalid cached payloads are treated as misses. Historical observations are kept separately from the disposable cache, and label versions are deduplicated separately from store offers. Retailer detail endpoints still return combined price/label payloads; independent retailer-label refresh is not implemented.
+
+```powershell
+node src/cli.ts history --chain k-ruoka --store N192 --id 6413300024074
+node src/cli.ts history --chain s-kaupat --id 6413300024074 --since 2026-10-31T00:00:00Z --limit 50
+```
+
+History is only what this installation observed, newest first, with source timestamps, conditions and an explicit historical flag. Omit the store to inspect all observed stores within that chain. Search and detail observations may overlap; limits are reported. History is never interpreted as current shelf stock. There is no automatic history deletion or scheduled collection, so storage grows with use. Preserve the database when moving the service; close the process before copying its SQLite files.
 
 ## Saved local preferences
 
@@ -131,6 +159,8 @@ Keep the process alive for repeated requests. It reuses one browser context and 
 | Data | K-Ruoka | S-Kaupat | Lidl |
 |---|---|---|---|
 | Store selection | Yes | Yes | Unsupported |
+| Nearby locations | Coordinates when supplied | Postal reference points | Exact coordinates and offer region |
+| Leaflets | Not implemented | Not implemented | Published page text, dates, PDF/image links; regional coverage incomplete |
 | Product search | Store catalog | Store catalog | Published search catalog + product sitemap |
 | Price | Normal/current price and conditional promotions | Current, regular and campaign fields when returned | Some published prices; dates and regions retained |
 | Unit price | Numeric amount + unit | Numeric amount + normalized unit | Parsed when an unambiguous kg/l price is published |
@@ -153,9 +183,17 @@ Verified on 2026-10-31 against Lidl's own website:
 - The [product sitemap](https://www.lidl.fi/p/export/FI/fi/product_sitemap.xml.gz) includes additional permanent bakery labels. Search combines these with the published product index and matches names/brands/URL text. Sitemap-only matches have unknown prices and may include non-food items; retrieve details to verify them.
 - [Juustokierre](https://www.lidl.fi/p/juustokierre/p10008395) publishes ingredients and a bilingual nutrition label but no price. The adapter returns the label as `labelText` without inventing a price or allergen interpretation.
 - [Proteiinirahka XXL](https://www.lidl.fi/p/proteiinirahka-xxl/p11005419) publishes a price, a kg price, several GTINs, regional data and an offer start date. The offer tested was upcoming on the research date, so its advertised amount is retained separately from current price.
-- [Offer leaflets](https://www.lidl.fi/c/tarjouslehdet/s10019134) offer another official price source and explicitly support regional/store selection. They do not establish a complete assortment or local stock feed. Leaflet extraction and Lidl store-region resolution are not implemented.
+- The [official store directory](https://www.lidl.fi/s/fi-FI/myymaelaet/) publishes indexed JSON with store IDs, addresses, coordinates and offer regions. Both Seinäjoki stores resolve to region `6`, named `Laukaa`. The country index can lag store openings; city records take precedence when they contain additional stores.
+- [Offer leaflets](https://www.lidl.fi/c/tarjouslehdet/s10019134) use the public `endpoints.leaflets.schwarz/v4/flyer` endpoint. `get_lidl_leaflets` discovers current published links and returns page matches, dates, PDF/image URLs and original fetch timestamps. Optional `storeId` sends its verified offer region. The tested national leaflets returned region `0` even when requesting `6`; `matchesRequestedRegion` is therefore false, not assumed true.
+- Finnish leaflets tested here contain page keywords/descriptions but **zero structured product records**. Text flattens layout and loses price decimal separators, so the adapter does not derive prices or join products by name. Publication dates and offer dates are separate; individual page offers may have narrower validity. Regional-only leaflets may be absent from the national index.
 
-Supported Finnish/Swedish bakery nutrition tables now populate structured nutrition as well as retaining the raw label. Other formats remain unknown. The remaining Lidl work is resolving regions to specific stores, extracting leaflet-only prices and supporting additional label formats. There is no verified complete national price/stock API in this implementation.
+```powershell
+node src/cli.ts stores --chain lidl --city Seinäjoki
+node src/cli.ts nearby --chain lidl --postal-code 60100
+node src/cli.ts leaflets --store FI00173 --city Seinäjoki --query jogurtti
+```
+
+Supported Finnish/Swedish bakery nutrition tables populate structured nutrition as well as retaining the raw label. Other formats remain unknown. Remaining Lidl work includes complete regional leaflet discovery, reliable extraction of leaflet-only prices and additional label formats. There is no verified complete national price/stock API in this implementation.
 
 ## Reliability and verification
 
@@ -169,13 +207,26 @@ bun run test
 
 # Opt-in network/browser smoke test; configure K/S default stores first.
 bun run smoke
+
+# Isolated browser page/context recovery, using a local HTTP server.
+node scripts/smoke-recovery.ts
+
+# Three cycles, fresh detail loads and a forced context-close recovery.
+node scripts/soak-groceries.ts --cycles 3 --interval-seconds 60
+
+# Approximately 24 hours: 49 cycles at 30-minute intervals.
+node scripts/soak-groceries.ts --cycles 49 --interval-seconds 1800 --run-id my-24h-run
 ```
+
+The soak runner uses its own `.cache/soak/<run-id>/` browser profile and SQLite database. It checks K-Citymarket Ideapark, S-market Kivistö and Lidl bakery search/detail, verifies fresh detail timestamps, tests cached search reads, and recreates the browser context every third cycle. It records each success/failure and Node memory usage in `checks.jsonl`, with progress in `status.json`. Memory figures exclude Chromium child processes. Failures remain recorded even if later cycles recover. Reusing a run ID is rejected. Create an empty `STOP` file inside the run directory for graceful shutdown (polled between requests and every five seconds while waiting). Keep the machine awake and inspect the final status; starting a run is not a successful endurance result.
 
 Offline tests cover recorded public product fixtures, store isolation, missing values, unit handling, Lidl offer validity, cache expiry/deduplication, HTTP failures/retries and the actual Node MCP stdio protocol. Fixtures were captured on 2026-10-31 and contain product data only. Live checks have exercised K-Market and K-Citymarket, two Prismas and two S-markets, store-specific detail prices, result pagination, all 1,047 S-group directory entries, city filtering, plus Lidl search, prices and bakery labels.
 
-Nearby discovery and a live three-store Seinäjoki comparison were also verified: 730 K/S search results scanned, all 53 matching yogurt offers fetched without detail failures. Lidl's partial published search yielded no matching yogurt. The comparison includes mixed fruit/vanilla flavours unless filtered, and cannot establish an all-market winner. Offline tests additionally cover postal aliases, distance precision, preferences, paginated comparisons, GTIN grouping, label conflicts, promotion eligibility and request budgets.
+Nearby discovery and a live three-store Seinäjoki comparison were also verified. The latest vanilla-only example scanned 730 K/S search results, processed all 31 matching offers, and enriched the exact-EAN Arla label without detail/enrichment failures. Lidl's partial published search yielded no matching yogurt. Cached product retrieval in a new process worked without launching a browser and retained its original observation timestamp. Offline tests additionally cover postal aliases, distance precision, preferences, paginated comparisons, GTIN grouping, label conflicts, promotion eligibility, SQLite reopening/expiry, manufacturer EAN validation, provider recovery and work budgets.
 
-This is a working local foundation, not a completed unattended-hosting validation. Long-duration monitoring, recovery after a real anti-bot challenge and a hosted Linux soak test remain. The inherited Bun HTTP/OAuth server and container configuration are retained; HTTP mode is not supported under Node yet and was not validated for deployment in this work. Before container deployment, packaging must include the new `data/` directory and exclude local caches/preferences. No hosting or authentication changes are required for local stdio use.
+`get_provider_health` reports live search/detail loads since the process started: successes, failures, consecutive failures, latency, last error and in-flight operations. It excludes cache hits, store-directory calls and manufacturer enrichment. Use it within the persistent MCP process; `node src/cli.ts health` starts a new process and therefore has no prior provider history. Local recovery checks verify replacement of closed pages and browser contexts. Transport tests cover dropped connections, HTTP retries and cooldown recovery.
+
+This is a working local foundation, not a completed unattended-hosting validation. A local endurance runner is implemented; a completed long-duration result, recovery after a real anti-bot challenge and a hosted Linux soak test remain. The inherited Bun HTTP/OAuth server is retained; HTTP mode is not supported under Node yet and was not validated for deployment in this work. Before container deployment, packaging must include the `data/` directory and persistence must be configured. Local caches, observations and preferences are excluded from the Docker build context. No hosting or authentication changes are required for local stdio use.
 
 ## Upstream work and attribution
 

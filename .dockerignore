@@ -1,6 +1,10 @@
 node_modules
 dist
 .browser-data
+.ruoka-data
+.ruoka-preferences.json
+.ruoka-preferences.json.*.tmp
+.cache
 .env
 .env.*
 !.env.example
