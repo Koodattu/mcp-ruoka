@@ -50,6 +50,22 @@ export function normalizePlace(text: string) {
 		.replace(/\p{Diacritic}/gu, "");
 }
 
+let municipalitiesByLocality: Map<string, Set<string>> | undefined;
+function localityMunicipalities() {
+	if (!municipalitiesByLocality) {
+		municipalitiesByLocality = new Map();
+		for (const row of postalData().rows) {
+			for (const locality of [row[1], row[2]]) {
+				const key = normalizePlace(locality);
+				const names = municipalitiesByLocality.get(key) ?? new Set<string>();
+				for (const municipality of [row[4], row[5]]) names.add(normalizePlace(municipality));
+				municipalitiesByLocality.set(key, names);
+			}
+		}
+	}
+	return municipalitiesByLocality;
+}
+
 export function matchesCity(store: Store, city: string): boolean {
 	const query = normalizePlace(city);
 	const area = store.postalCode ? postalArea(store.postalCode) : null;
@@ -63,11 +79,7 @@ export function matchesCity(store: Store, city: string): boolean {
 	if (names.some((s) => s && normalizePlace(s) === query)) return true;
 	// K's directory sometimes omits postal codes; municipality membership can still be
 	// resolved from the locality name, without substring-matching Peräseinäjoki to Seinäjoki.
-	return postalData().rows.some(
-		(r) =>
-			[r[1], r[2]].some((s) => normalizePlace(s) === normalizePlace(store.location)) &&
-			[r[4], r[5]].some((s) => normalizePlace(s) === query),
-	);
+	return localityMunicipalities().get(normalizePlace(store.location))?.has(query) ?? false;
 }
 
 export function distanceKm(a: Point, b: Point): number {

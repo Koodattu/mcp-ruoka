@@ -38,7 +38,11 @@ export const SearchInputSchema = z
 	})
 	.strict();
 export const ProductInputSchema = z
-	.object({ ...StoreInput, id: z.string().regex(/^\d{1,14}$/) })
+	.object({
+		...StoreInput,
+		id: z.string().regex(/^\d{1,14}$/),
+		refresh: z.boolean().default(false),
+	})
 	.strict();
 export const StoresInputSchema = z
 	.object({ chain: GroceryChainSchema.optional(), city: z.string().trim().min(1).optional() })
@@ -74,13 +78,32 @@ export function resolveStore(
 const searchCache = memoizedLookup<GrocerySearchResult>(0);
 const productCache = memoizedLookup<GroceryProduct>(0);
 const storeCache = memoizedLookup<Store[]>(60 * 60_000, 30);
+const StoreListSchema = z.array(
+	z.object({
+		id: z.string(),
+		name: z.string(),
+		location: z.string(),
+		chain: GroceryChainSchema,
+		postalCode: z.string().nullable().optional(),
+		address: z.string().nullable().optional(),
+		coordinates: z.object({ latitude: z.number(), longitude: z.number() }).nullable().optional(),
+		website: z.string().nullable().optional(),
+	}),
+);
 
 export async function searchProducts(
 	input: z.input<typeof SearchInputSchema>,
 ): Promise<GrocerySearchResult> {
-	const { chain, query, storeId: supplied, limit, offset } = SearchInputSchema.parse(input);
+	const {
+		chain,
+		query: requestedQuery,
+		storeId: supplied,
+		limit,
+		offset,
+	} = SearchInputSchema.parse(input);
+	const query = requestedQuery.normalize("NFC").toLocaleLowerCase("fi").replace(/\s+/g, " ").trim();
 	const storeId = resolveStore(chain, supplied, process.env, getPreferences().defaultStores);
-	const key = JSON.stringify(["search", chain, storeId, query, limit, offset]);
+	const key = JSON.stringify(["search-v2", chain, storeId, query, limit, offset]);
 	const result = await searchCache(key, async () => {
 		const db = await getObservationStore();
 		const cached = db.readCache(
@@ -107,7 +130,7 @@ export async function searchProducts(
 			return GrocerySearchSchema.parse(loaded);
 		});
 		db.record(validated.products, "search");
-		db.writeCache(key, validated, Date.now() + 60_000);
+		db.writeCache(key, validated, Date.now() + 5 * 60_000);
 		return validated;
 	});
 	result.products = result.products.map((product) => applyPriceValidity(product));
@@ -117,15 +140,19 @@ export async function searchProducts(
 export async function getProduct(
 	input: z.input<typeof ProductInputSchema>,
 ): Promise<GroceryProduct & { nutritionAssessment: NutritionAssessment }> {
-	const { chain, id, storeId: supplied } = ProductInputSchema.parse(input);
+	const { chain, id, storeId: supplied, refresh } = ProductInputSchema.parse(input);
 	const storeId = resolveStore(chain, supplied, process.env, getPreferences().defaultStores);
-	const key = JSON.stringify(["detail", chain, storeId, id]);
-	const product = await productCache(key, async () => {
+	const key = JSON.stringify(["detail-v2", chain, storeId, id]);
+	const product = await productCache(`${key}:${refresh}`, async () => {
 		const db = await getObservationStore();
-		const cached = db.readCache(
-			key,
-			GroceryProductSchema.refine((p) => p.chain === chain && p.storeId === storeId && p.id === id),
-		);
+		const cached = refresh
+			? null
+			: db.readCache(
+					key,
+					GroceryProductSchema.refine(
+						(p) => p.chain === chain && p.storeId === storeId && p.id === id,
+					),
+				);
 		if (cached) return cached;
 		const validated = await observeProvider(chain, async () => {
 			const loaded =
@@ -151,7 +178,17 @@ export async function getStores(input: z.input<typeof StoresInputSchema> = {}) {
 		chains.map((c) =>
 			c === "lidl"
 				? getLidlStores(city)
-				: storeCache(c, () => (c === "k-ruoka" ? kRuoka : sKaupat).getStores()),
+				: storeCache(c, async () => {
+						const db = await getObservationStore();
+						const key = `stores-v1:${c}`;
+						const cached = db.readCache(key, StoreListSchema);
+						if (cached) return cached;
+						const stores = StoreListSchema.parse(
+							await (c === "k-ruoka" ? kRuoka : sKaupat).getStores(),
+						);
+						db.writeCache(key, stores, Date.now() + 24 * 60 * 60_000);
+						return stores;
+					}),
 		),
 	);
 	const stores: Store[] = [];
@@ -312,7 +349,7 @@ export function getCapabilities() {
 				availability: "unknown",
 			},
 		],
-		cacheSeconds: { search: 60, product: 300, stores: 3600, lidlIndex: 3600 },
+		cacheSeconds: { search: 300, product: 300, stores: 86400, lidlIndex: 3600 },
 		persistentObservations:
 			"SQLite search/detail cache, historical store-price observations and label versions. Historical prices are only returned through get_price_history; expired prices never become live fallbacks.",
 		manufacturerEnrichment:

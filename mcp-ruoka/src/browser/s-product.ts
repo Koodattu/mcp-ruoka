@@ -65,12 +65,13 @@ export function parseSProduct(raw: unknown, storeId: string): GroceryProduct {
 		name: p.name,
 		brand: p.brandName ?? null,
 		category: p.hierarchyPath?.[0]?.name ?? null,
+		categoryPath: p.hierarchyPath?.map((part) => part.name).join(" / ") || null,
 		price: pricing?.currentPrice ?? null,
 		unitPrice: comparison ? `${comparison.amount} EUR/${comparison.unit}` : null,
 		pricePerKg: comparison?.unit === "kg" ? comparison.amount : null,
 		imageUrl:
 			p.productDetails?.productImages?.mainImage?.urlTemplate
-				.replace("{MODIFIERS}", "w_200,h_200")
+				.replace("{MODIFIERS}", "w200h200")
 				.replace("{EXTENSION}", "png") ?? null,
 		ingredients: p.ingredientStatement ?? null,
 		description: p.description ?? null,

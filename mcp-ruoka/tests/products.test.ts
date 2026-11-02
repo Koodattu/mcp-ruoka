@@ -88,6 +88,10 @@ test("K standard promotions change current price only while active; loyalty batc
 
 test("S milk preserves decimal-comma and zero nutrition values with their basis", () => {
 	const product = parseSProduct(s, "513971200");
+	assert.equal(
+		product.imageUrl,
+		"https://cdn.s-cloud.fi/v1/w200h200/assets/dam-id/EgIC40qkqw-9pDn0NjPWu1.png",
+	);
 	assert.equal(product.price, 0.85);
 	assert.deepEqual(product.pricing.unitPrice, { amount: 0.85, unit: "l" });
 	assert.equal(product.pricePerKg, null);

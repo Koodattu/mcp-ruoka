@@ -1,6 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod/v4";
 import {
+	AvailabilityInputSchema,
+	discoverProducts,
+	getProductAvailability,
+	getProducts,
+	ProductsInputSchema,
+} from "../catalog.ts";
+import {
 	CompareInputSchema,
 	compareProducts,
 	getCapabilities,
@@ -17,10 +24,37 @@ import {
 	ManufacturerDiscoverySchema,
 	ManufacturerSourceSchema,
 } from "../manufacturer.ts";
-import { getPriceHistory, HistoryInputSchema } from "../observations.ts";
+import { getObservationStore, getPriceHistory, HistoryInputSchema } from "../observations.ts";
 import { toolResult } from "./result.ts";
 
 export function registerSearchTool(server: McpServer): void {
+	server.registerTool(
+		"discover_products",
+		{
+			description:
+				"Discover compact product candidates: IDs, names, category paths, store prices and availability, without label detail requests. Preserve pagination and weak-search warnings. Select candidates semantically before calling get_products; names do not establish dietary or nutrition claims.",
+			inputSchema: SearchInputSchema,
+		},
+		(input) => toolResult(() => discoverProducts(input)),
+	);
+	server.registerTool(
+		"get_products",
+		{
+			description:
+				"Inspect up to eight selected product/store references. Returns labels, nutrition, photos and availability; cached details are reused. Individual failures do not erase other products. Only use IDs from discovery or earlier evidence.",
+			inputSchema: ProductsInputSchema,
+		},
+		(input) => toolResult(() => getProducts(input)),
+	);
+	server.registerTool(
+		"get_product_availability",
+		{
+			description:
+				"Check K-Ruoka availability for an exact product and store, optionally nearby alternatives. Cached for one minute; refresh forces a current check. Reports store/online flags, not shelf quantities. Nearby omissions are not proof of absence.",
+			inputSchema: AvailabilityInputSchema,
+		},
+		(input) => toolResult(() => getProductAvailability(input)),
+	);
 	server.registerTool(
 		"discover_manufacturer_label",
 		{
@@ -55,7 +89,11 @@ export function registerSearchTool(server: McpServer): void {
 				"Read search/detail provider health since this process started: successful/failed live loads, last error, latency and in-flight operations. Cached results do not establish current provider health. Does not probe retailer websites.",
 			inputSchema: z.object({}),
 		},
-		() => toolResult(getProviderHealth),
+		() =>
+			toolResult(async () => ({
+				...getProviderHealth(),
+				cache: (await getObservationStore()).cacheStats(),
+			})),
 	);
 	server.registerTool(
 		"get_price_history",

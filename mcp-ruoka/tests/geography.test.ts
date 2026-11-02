@@ -29,6 +29,17 @@ test("copied postal data resolves Hyllykallio to Seinäjoki and locates Prisma n
 	assert.equal(result.stores[0]?.distancePrecision, "postal-area-reference");
 });
 
+test("city membership without postcodes preserves locality aliases and exact municipality matching", () => {
+	const store = { id: "N192", chain: "k-ruoka" as const, name: "Store", location: "Hyllykallio" };
+	assert.equal(matchesCity(store, "Seinäjoki"), true);
+	assert.equal(matchesCity(store, " SEINAJOKI "), true);
+	assert.equal(matchesCity(store, "Hyllykallio"), true);
+	assert.equal(matchesCity(store, "Helsinki"), false);
+	assert.equal(matchesCity(store, "joki"), false);
+	assert.equal(matchesCity({ ...store, location: "Helsinki" }, "Helsingfors"), true);
+	assert.equal(matchesCity({ ...store, location: "Not a locality" }, "Seinäjoki"), false);
+});
+
 test("nearby reporting preserves unknown location counts and limits", () => {
 	const origin = { latitude: 62.8, longitude: 22.8 };
 	const stores = [1, 2, 3].map((n) => ({

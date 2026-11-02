@@ -41,6 +41,10 @@ const OfferSchema = GroceryProductSchema.pick({
 }).extend({ kind: z.enum(["search", "detail"]) });
 
 export class ObservationStore {
+	private readonly counters = { hits: 0, misses: 0, writes: 0 };
+	cacheStats() {
+		return { ...this.counters };
+	}
 	private readonly db: Database;
 	private constructor(db: Database) {
 		this.db = db;
@@ -67,18 +71,28 @@ export class ObservationStore {
 	}
 	readCache<T>(key: string, schema: z.ZodType<T>, now = Date.now()): T | null {
 		const raw = this.db.prepare("SELECT expires,payload FROM cache_v1 WHERE key=?").get(key);
-		if (!raw) return null;
+		if (!raw) {
+			this.counters.misses++;
+			return null;
+		}
 		const row = CacheRow.parse(raw);
-		if (row.expires <= now) return null;
+		if (row.expires <= now) {
+			this.counters.misses++;
+			return null;
+		}
 		try {
-			return schema.parse(JSON.parse(row.payload));
+			const value = schema.parse(JSON.parse(row.payload));
+			this.counters.hits++;
+			return value;
 		} catch {
+			this.counters.misses++;
 			// A cache from an older schema can be reloaded; historical observations stay untouched.
 			this.db.prepare("DELETE FROM cache_v1 WHERE key=?").run(key);
 			return null;
 		}
 	}
 	writeCache(key: string, value: unknown, expires: number) {
+		this.counters.writes++;
 		this.db
 			.prepare(
 				"INSERT INTO cache_v1 VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET expires=excluded.expires,payload=excluded.payload",

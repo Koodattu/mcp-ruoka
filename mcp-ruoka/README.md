@@ -55,7 +55,13 @@ Example MCP client configuration for this checkout:
 }
 ```
 
-Tools: `get_capabilities`, `get_stores`, `get_nearby_stores`, `search_products`, `get_product`, `compare_products`, `get_preferences`, `set_preferences`, `get_price_history`, `get_manufacturer_label`, `discover_manufacturer_label`, `get_lidl_leaflets`, `get_provider_health`. Successful tools return both JSON text and MCP `structuredContent`. Errors set `isError`. Store lookup and comparison can return partial results with explicit failure reports; always inspect their coverage and warnings.
+Tools: `get_capabilities`, `get_stores`, `get_nearby_stores`, `discover_products`, `get_products`, `get_product_availability`, `search_products`, `get_product`, `compare_products`, `get_preferences`, `set_preferences`, `get_price_history`, `get_manufacturer_label`, `discover_manufacturer_label`, `get_lidl_leaflets`, `get_provider_health`. Successful tools return both JSON text and MCP `structuredContent`. Errors set `isError`. Store lookup and comparison can return partial results with explicit failure reports; always inspect their coverage and warnings.
+
+For model-driven selection, use `discover_products` with the same inputs as `search_products`, then `get_products` with up to eight `{ chain, storeId, id }` references. Discovery retains category paths, weak-match signals, price/availability summaries and pagination without fetching labels. Batch inspection deduplicates references, returns partial failures, and reuses cached details. Both report SQLite cache hits/misses; `get_provider_health` additionally reports live provider loads and cache counters.
+
+K/S directories persist for 24 hours. Search queries normalize Unicode, case and whitespace and cache for five minutes; product details cache for five minutes. `get_product` and batch items support `refresh: true`. Label data remains historical in SQLite but is not silently substituted into a fresh store offer.
+
+`get_product_availability` accepts `{ chain: "k-ruoka", storeId, id, nearby?: boolean, refresh?: boolean }`. It refreshes the selected store's listing and optionally queries K-Ruoka's nearby-alternatives endpoint, caching the result for one minute. Unavailable stores return a null purchase price even when the retailer response contains a price. Nearby lists exclude the reference store and retain the supplied radius; an omitted store is not proof of unavailability. These are listing flags, not physical shelf quantities.
 
 `get_stores` now returns `{ stores, warnings }`. Search has pagination and coverage metadata, and products have additional structured fields. Existing clients that assumed the original array-only store response need updating.
 
@@ -199,7 +205,7 @@ Supported Finnish/Swedish bakery nutrition tables populate structured nutrition 
 
 Implemented: bounded HTTP/browser timeouts, serialized retailer JSON requests, bounded retries for transient HTTP/network failures, S browser fallback after a direct 403, runtime discovery of S persisted-query hashes, K build discovery and one refresh after a version rejection, bounded TTL caches with in-flight deduplication, and response validation. Retry-After is respected; a server cooldown over 30 seconds returns an error instead of retrying early or holding the queue indefinitely. Browser launch failures never delete the persistent profile.
 
-Cache lifetimes: search 60 seconds, details 5 minutes, stores and Lidl index 1 hour. Offer validity is rechecked when returning cached prices. Cached responses preserve their original observation timestamp; failures are not cached and stale values are not substituted for failed refreshes. Lidl index prices may therefore be up to an hour old. These are internal website endpoints and can change or block automation.
+Cache lifetimes: searches and details 5 minutes, K/S store directories 24 hours in SQLite (with a 1-hour memory cache), Lidl index 1 hour, and explicit K availability checks 1 minute. Offer validity is rechecked when returning cached prices. Cached responses preserve their original observation timestamp; failures are not cached and stale values are not substituted for failed refreshes. Lidl index prices may therefore be up to an hour old. These are internal website endpoints and can change or block automation.
 
 ```powershell
 bun run typecheck

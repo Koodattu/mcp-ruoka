@@ -19,6 +19,7 @@ test("Node stdio advertises grocery tools and returns structured capabilities wi
 		assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), [
 			"compare_products",
 			"discover_manufacturer_label",
+			"discover_products",
 			"get_capabilities",
 			"get_lidl_leaflets",
 			"get_manufacturer_label",
@@ -26,6 +27,8 @@ test("Node stdio advertises grocery tools and returns structured capabilities wi
 			"get_preferences",
 			"get_price_history",
 			"get_product",
+			"get_product_availability",
+			"get_products",
 			"get_provider_health",
 			"get_stores",
 			"search_products",

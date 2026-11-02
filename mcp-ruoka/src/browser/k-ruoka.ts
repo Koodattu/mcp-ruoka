@@ -27,7 +27,12 @@ const ProductSchema = z.object({
 	store: z.object({ id: z.string() }).nullish(),
 	images: z.array(z.string()).nullish(),
 	brand: z.object({ name: z.string() }).nullish(),
-	category: z.object({ localizedName: z.object({ finnish: z.string() }).nullish() }).nullish(),
+	category: z
+		.object({
+			path: z.string().nullish(),
+			localizedName: z.object({ finnish: z.string() }).nullish(),
+		})
+		.nullish(),
 	availability: z.object({ store: z.boolean().nullish(), web: z.boolean().nullish() }).nullish(),
 	mobilescan: z
 		.object({
@@ -93,6 +98,7 @@ export function parseKProduct(raw: unknown, storeId: string, now = Date.now()): 
 		imageUrl: p.images?.[0] ?? null,
 		brand: p.brand?.name ?? null,
 		category: p.category?.localizedName?.finnish ?? null,
+		categoryPath: p.category?.path ?? null,
 		availability: {
 			inStore: p.availability?.store ?? null,
 			online: p.availability?.web ?? null,
@@ -183,14 +189,19 @@ export function parseKProduct(raw: unknown, storeId: string, now = Date.now()): 
 	return result;
 }
 
-async function api(path: string, method = "GET"): Promise<unknown> {
+async function api(path: string, method = "GET", body?: string): Promise<unknown> {
 	for (let attempt = 0; attempt < 2; attempt++) {
 		await getPage();
 		try {
 			return await requestJson(new URL(path, ORIGIN), ORIGIN, {
 				browser: true,
 				method,
-				headers: { "x-k-build-number": getBuildNumber(), accept: "application/json" },
+				body,
+				headers: {
+					"x-k-build-number": getBuildNumber(),
+					accept: "application/json",
+					...(body ? { "Content-Type": "application/json" } : {}),
+				},
 			});
 		} catch (error) {
 			if (!(error instanceof RetailerHttpError) || error.status !== 409 || attempt > 0) throw error;
@@ -220,12 +231,14 @@ export async function searchProducts(
 			result: z.array(z.object({ product: z.unknown() })),
 			totalHits: z.number(),
 			storeId: z.string(),
+			hasGoodResults: z.boolean().optional(),
 		})
 		.parse(raw);
 	if (data.storeId !== storeId) throw new Error("K-Ruoka search returned the wrong store");
 	const products = data.result.map((item) => parseKProduct(item.product, storeId));
 	return {
 		products,
+		hasGoodResults: data.hasGoodResults ?? null,
 		totalCount: data.totalHits,
 		query,
 		storeId,
@@ -236,7 +249,12 @@ export async function searchProducts(
 				? offset + products.length
 				: null,
 		coverage: "store-catalog",
-		warnings: [],
+		warnings:
+			data.hasGoodResults === false
+				? [
+						"Retailer reported weak search matches. Inspect candidate categories or try a broader synonym; results are not exact matches.",
+					]
+				: [],
 	};
 }
 
@@ -274,4 +292,22 @@ export async function getStores(city?: string): Promise<Store[]> {
 			website: s.slug ? `${ORIGIN}/kauppa/${s.slug}` : null,
 			chain: "k-ruoka",
 		}));
+}
+
+export async function getNearbyAvailability(id: string, storeId: string) {
+	return z
+		.object({
+			distanceLimitInKm: z.number(),
+			nearestDistance: z.number().nullable(),
+			storesWithAvailability: z.array(
+				z.object({ id: z.string(), name: z.string(), location: z.string() }),
+			),
+		})
+		.parse(
+			await api(
+				`/kr-api/v2/products/${encodeURIComponent(id)}/availability`,
+				"POST",
+				JSON.stringify({ storeId }),
+			),
+		);
 }

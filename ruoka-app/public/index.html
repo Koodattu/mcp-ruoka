@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f7f2">
+  <title>Ruoka — A little help with your groceries</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23274938'/%3E%3Ctext x='11' y='29' font-size='30' fill='%23f7f7f2' font-family='Georgia'%3Er%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <a class="skip-link" href="#message">Skip to message</a>
+  <aside class="sidebar" aria-label="Conversations">
+    <a class="brand" href="/" aria-label="Ruoka home"><span class="brand-mark" aria-hidden="true">r.</span><span>ruoka<span class="brand-dot">.</span></span></a>
+    <p class="tagline">Good food. A little less searching.</p>
+    <button type="button" id="new-chat" class="new-chat"><span aria-hidden="true">＋</span> New conversation</button>
+    <div class="history-heading">YOUR CONVERSATIONS</div>
+    <nav id="chat-list" aria-label="Saved chats"><p class="history-empty">Your conversations will appear here.</p></nav>
+    <div class="sidebar-foot"><span class="local-dot" aria-hidden="true"></span><div>Saved on this computer<small>Your messages are sent to OpenAI to answer.</small></div></div>
+  </aside>
+  <main>
+    <header class="topbar">
+      <div class="page-context">Your grocery companion <span class="demo-badge">LOCAL DEMO</span></div>
+      <div class="header-controls">
+        <form id="city-form" class="model-control">
+          <label for="city">City</label>
+          <input id="city" name="city" aria-label="Shopping city" list="city-options" autocomplete="off" placeholder="Choose city" maxlength="100" aria-describedby="city-help" required>
+          <datalist id="city-options"></datalist>
+          <span id="city-help" class="sr-only" role="status">Type to search for your city. Your choice saves automatically.</span>
+        </form>
+        <div class="model-control"><label for="model">Model</label><select id="model" aria-label="Model"><option>Loading…</option></select></div>
+      </div>
+    </header>
+    <div id="scroll-area" class="scroll-area">
+      <section id="welcome" class="welcome" aria-labelledby="welcome-title">
+        <div class="eyebrow"><span aria-hidden="true">✳</span> A BETTER WAY TO BROWSE THE AISLES</div>
+        <h1 id="welcome-title">What’s worth<br>putting in your <em>basket?</em></h1>
+        <p class="intro">Find a better everyday favourite. Compare groceries,<br class="desktop-break"> prices and ingredients from Finnish stores—just ask.</p>
+        <div class="retailers" aria-label="Searches S Group, K Group, and Lidl"><span>S Group</span><span>K Group</span><span>Lidl <small>partial catalog</small></span></div>
+        <div class="suggestions">
+          <button type="button" data-prompt="Etsi hyvä vaniljajogurtti. Vertaa sokeria ja kilohintaa."><span class="suggestion-icon" aria-hidden="true">◒</span><strong>Find a better favourite</strong><span>Hyvä vaniljajogurtti omasta kaupungista?</span><span class="arrow" aria-hidden="true">↗</span></button>
+          <button type="button" data-prompt="Find affordable oat milk. Compare price per litre and show the source links."><span class="suggestion-icon" aria-hidden="true">€</span><strong>Make your budget go further</strong><span>Compare oat milk in your city.</span><span class="arrow" aria-hidden="true">↗</span></button>
+          <button type="button" data-prompt="Etsi laktoosittomia proteiinijogurtteja. Vertaa proteiinia ja sokeria per 100 g sekä hintaa."><span class="suggestion-icon" aria-hidden="true">≋</span><strong>Look a little closer</strong><span>Compare protein, sugar & ingredients.</span><span class="arrow" aria-hidden="true">↗</span></button>
+        </div>
+      </section>
+      <section id="messages" class="messages" aria-label="Messages" aria-busy="false"></section>
+    </div>
+    <div class="composer-area">
+      <div id="error" class="error-banner" role="alert" hidden></div>
+      <form id="composer" class="composer">
+        <label for="message" class="sr-only">Message Ruoka</label>
+        <textarea id="message" name="message" rows="2" maxlength="8000" placeholder="Find me the best jogurtti…" required></textarea>
+        <div class="composer-bottom"><span>Finnish or English. Your choice.</span><button id="send" type="submit" aria-label="Send message">Send <span aria-hidden="true">↑</span></button><button id="stop" type="button" hidden>Stop <span aria-hidden="true">■</span></button></div>
+      </form>
+      <p class="composer-note">Prices belong to a store and a moment. Check the source before you shop.</p>
+    </div>
+  </main>
+</body>
+</html>

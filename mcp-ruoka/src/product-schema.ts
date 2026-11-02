@@ -19,6 +19,7 @@ export const GroceryProductSchema = z.object({
 	imageUrl: z.string().nullable(),
 	brand: z.string().nullable(),
 	category: z.string().nullable(),
+	categoryPath: z.string().nullable().optional(),
 	pricing: z.object({
 		currency: z.literal("EUR"),
 		unitPrice: UnitPrice,
@@ -69,6 +70,7 @@ export const GroceryProductSchema = z.object({
 	warnings: z.array(z.string()),
 }) satisfies z.ZodType<GroceryProduct>;
 export const GrocerySearchSchema: z.ZodType<GrocerySearchResult> = z.object({
+	hasGoodResults: z.boolean().nullable().optional(),
 	chain: GroceryChainSchema,
 	storeId: z.string().nullable(),
 	query: z.string(),

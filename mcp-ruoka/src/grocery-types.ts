@@ -5,6 +5,7 @@ export const GroceryChainSchema = z.enum(["k-ruoka", "s-kaupat", "lidl"]);
 export type GroceryChain = z.infer<typeof GroceryChainSchema>;
 
 export interface GroceryProduct extends Product {
+	categoryPath?: string | null;
 	chain: GroceryChain;
 	storeId: string | null;
 	gtins: string[];
@@ -53,6 +54,7 @@ export interface GroceryProduct extends Product {
 }
 
 export interface GrocerySearchResult {
+	hasGoodResults?: boolean | null;
 	chain: GroceryChain;
 	storeId: string | null;
 	query: string;

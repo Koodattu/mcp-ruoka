@@ -22,7 +22,12 @@ export class RetailerHttpError extends Error {
 export async function requestJson(
 	url: URL,
 	origin: string,
-	options: { browser?: boolean; method?: string; headers?: Record<string, string> } = {},
+	options: {
+		browser?: boolean;
+		method?: string;
+		headers?: Record<string, string>;
+		body?: string;
+	} = {},
 ): Promise<unknown> {
 	const previous = tails.get(origin) ?? Promise.resolve();
 	const task = previous
@@ -40,10 +45,11 @@ export async function requestJson(
 						const page = await getOriginPage(origin);
 						response = Envelope.parse(
 							await page.evaluate(
-								async ({ url, method, headers }) => {
+								async ({ url, method, headers, body }) => {
 									const res = await fetch(url, {
 										method,
 										headers,
+										body,
 										signal: AbortSignal.timeout(20_000),
 									});
 									return {
@@ -56,6 +62,7 @@ export async function requestJson(
 									url: url.toString(),
 									method: options.method ?? "GET",
 									headers: options.headers ?? {},
+									body: options.body,
 								},
 							),
 						);
@@ -63,6 +70,7 @@ export async function requestJson(
 						const res = await fetch(url, {
 							method: options.method ?? "GET",
 							headers: options.headers,
+							body: options.body,
 							signal: AbortSignal.timeout(20_000),
 						});
 						response = {
