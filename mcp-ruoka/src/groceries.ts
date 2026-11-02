@@ -3,6 +3,7 @@ import * as kRuoka from "./browser/k-ruoka.ts";
 import * as lidl from "./browser/lidl.ts";
 import * as sKaupat from "./browser/s-kaupat.ts";
 import { memoizedLookup } from "./cache.ts";
+import { CACHE_MS, offerExpiry } from "./cache-policy.ts";
 import { CompareInputSchema, type ComparisonInput, runComparison } from "./comparison.ts";
 import { locateNearby, matchesCity, NearbyInputSchema } from "./geography.ts";
 import {
@@ -35,6 +36,7 @@ export const SearchInputSchema = z
 		query: z.string().trim().min(1).max(200),
 		limit: z.number().int().min(1).max(50).default(10),
 		offset: z.number().int().min(0).max(10000).default(0),
+		refresh: z.boolean().default(false),
 	})
 	.strict();
 export const ProductInputSchema = z
@@ -93,6 +95,7 @@ const StoreListSchema = z.array(
 
 export async function searchProducts(
 	input: z.input<typeof SearchInputSchema>,
+	{ catalogOnly = false } = {},
 ): Promise<GrocerySearchResult> {
 	const {
 		chain,
@@ -100,19 +103,26 @@ export async function searchProducts(
 		storeId: supplied,
 		limit,
 		offset,
+		refresh,
 	} = SearchInputSchema.parse(input);
 	const query = requestedQuery.normalize("NFC").toLocaleLowerCase("fi").replace(/\s+/g, " ").trim();
 	const storeId = resolveStore(chain, supplied, process.env, getPreferences().defaultStores);
 	const key = JSON.stringify(["search-v2", chain, storeId, query, limit, offset]);
-	const result = await searchCache(key, async () => {
+	const catalogKey = JSON.stringify(["catalog-v1", chain, storeId, query, limit, offset]);
+	const result = await searchCache(`${key}:${refresh}:${catalogOnly}`, async () => {
 		const db = await getObservationStore();
-		const cached = db.readCache(
-			key,
-			GrocerySearchSchema.refine(
-				(r) =>
-					r.chain === chain && r.storeId === storeId && r.query === query && r.offset === offset,
-			),
-		);
+		const cached = refresh
+			? null
+			: db.readCache(
+					catalogOnly ? catalogKey : key,
+					GrocerySearchSchema.refine(
+						(r) =>
+							r.chain === chain &&
+							r.storeId === storeId &&
+							r.query === query &&
+							r.offset === offset,
+					),
+				);
 		if (cached) return cached;
 		const validated = await observeProvider(chain, async () => {
 			const loaded =
@@ -130,10 +140,19 @@ export async function searchProducts(
 			return GrocerySearchSchema.parse(loaded);
 		});
 		db.record(validated.products, "search");
-		db.writeCache(key, validated, Date.now() + 5 * 60_000);
+		db.writeCache(key, validated, offerExpiry(validated.products));
+		db.writeCache(catalogKey, validated, Date.now() + CACHE_MS.membership);
 		return validated;
 	});
-	result.products = result.products.map((product) => applyPriceValidity(product));
+	result.products = result.products.map((product) => {
+		if (Date.parse(product.source.fetchedAt) + CACHE_MS.offers <= Date.now()) {
+			product.price = product.pricePerKg = product.pricing.unitPrice = null;
+			product.unitPrice = null;
+			product.availability = { inStore: null, online: null, stock: "unknown" };
+			product.pricing.promotions = [];
+		}
+		return applyPriceValidity(product);
+	});
 	return result;
 }
 
@@ -154,6 +173,8 @@ export async function getProduct(
 					),
 				);
 		if (cached) return cached;
+		const composed = refresh ? null : db.readProduct(chain, storeId, id);
+		if (composed) return composed;
 		const validated = await observeProvider(chain, async () => {
 			const loaded =
 				chain === "lidl"
@@ -165,7 +186,7 @@ export async function getProduct(
 			return GroceryProductSchema.parse(loaded);
 		});
 		db.record([validated], "detail");
-		db.writeCache(key, validated, Date.parse(validated.source.fetchedAt) + 5 * 60_000);
+		db.writeCache(key, validated, offerExpiry([validated]));
 		return validated;
 	});
 	return { ...applyPriceValidity(product), nutritionAssessment: assessNutrition(product) };
@@ -186,7 +207,7 @@ export async function getStores(input: z.input<typeof StoresInputSchema> = {}) {
 						const stores = StoreListSchema.parse(
 							await (c === "k-ruoka" ? kRuoka : sKaupat).getStores(),
 						);
-						db.writeCache(key, stores, Date.now() + 24 * 60 * 60_000);
+						db.writeCache(key, stores, Date.now() + CACHE_MS.stores);
 						return stores;
 					}),
 		),
@@ -349,7 +370,15 @@ export function getCapabilities() {
 				availability: "unknown",
 			},
 		],
-		cacheSeconds: { search: 300, product: 300, stores: 86400, lidlIndex: 3600 },
+		cacheSeconds: {
+			search: CACHE_MS.offers / 1000,
+			product: CACHE_MS.offers / 1000,
+			labels: CACHE_MS.labels / 1000,
+			membership: CACHE_MS.membership / 1000,
+			stores: CACHE_MS.stores / 1000,
+			availability: CACHE_MS.availability / 1000,
+			lidlIndex: 3600,
+		},
 		persistentObservations:
 			"SQLite search/detail cache, historical store-price observations and label versions. Historical prices are only returned through get_price_history; expired prices never become live fallbacks.",
 		manufacturerEnrichment:

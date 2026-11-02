@@ -121,6 +121,60 @@ test("cross-retailer nutrition conflicts are order-independent and remain unknow
 	assert.equal(mergeNutrition([a, conflict]).addedSugar.status, "unknown");
 });
 
+test("explicit 100 g panels take precedence over rounded servings while conflicting 100 g panels remain unknown", () => {
+	const hundred = {
+		basis: "100 g",
+		preparation: "Tuote myyntihetkellä",
+		values: [
+			{ name: "protein", value: "25 g" },
+			{ name: "energyKcal", value: "490 kcal" },
+		],
+	};
+	const serving = {
+		basis: "35 g",
+		preparation: null,
+		values: [
+			{ name: "protein", value: "8.8 g" },
+			{ name: "energyKcal", value: "173 kcal" },
+		],
+	};
+	for (const tables of [
+		[hundred, serving],
+		[serving, hundred],
+	]) {
+		const n = assessNutrition(product({ nutrition: tables }));
+		assert.equal(n.per100g.protein, 25);
+		assert.equal(n.per100g.energyKcal, 490);
+	}
+	const conflicting = { ...hundred, values: [{ name: "protein", value: "30 g" }] };
+	assert.equal(
+		assessNutrition(product({ nutrition: [hundred, conflicting] })).per100g.protein,
+		null,
+	);
+});
+
+test("a per-bar protein claim that contradicts the table basis is not silently ranked as a low-calorie bar", () => {
+	const n = assessNutrition(
+		product({
+			name: "Protein bar 55 g",
+			description: "Sisältää proteiinia (20g/patukka).",
+			nutrition: [
+				{
+					basis: "100 g",
+					preparation: null,
+					values: [
+						{ name: "protein", value: "20 g" },
+						{ name: "energyKcal", value: "203 kcal" },
+					],
+				},
+			],
+		}),
+	);
+	assert.equal(n.per100g.protein, null);
+	assert.equal(n.per100g.energyKcal, null);
+	assert.ok(n.warnings.some((w) => /stated basis/.test(w)));
+});
+
 test("observed Lidl bilingual bakery label yields sugar and energy, unsupported labels stay empty", () => {
 	const nutrition = parseLidlLabel(
 		"Ravintoarvo/Näringsvärde Ø/100 g: Energiaa/Energi 1605 kJ/384 kcal; Rasvaa/Fett 21,8 g, josta tyydyttynyttä rasvaa/varav mättat fett 10,8 g; Hiilihydraatteja/Kolhydrat 36,8 g, joista sokereita/varav sockerarter 6,0 g; Ravintokuitua/Fiber 2,0 g; Proteiinia/Protein 9,2 g; Suolaa/Salt 1,04 g.",

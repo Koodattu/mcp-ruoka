@@ -4,7 +4,7 @@ import test from "node:test";
 import * as z from "zod/v4";
 import { parseKProduct } from "../src/browser/k-ruoka.ts";
 import { decodeLidlProduct, parseLidlProduct } from "../src/browser/lidl.ts";
-import { parseSProduct } from "../src/browser/s-product.ts";
+import { parseSBatch, parseSProduct } from "../src/browser/s-product.ts";
 import { resolveStore, SearchInputSchema } from "../src/groceries.ts";
 import { applyPriceValidity } from "../src/grocery-types.ts";
 
@@ -16,6 +16,32 @@ function fixture(name: string) {
 const k = fixture("k-milk");
 const s = fixture("s-milk");
 const lidl = fixture("lidl-quark");
+
+test("S batch retains successful labels while rejecting null, wrong-product and wrong-store entries", () => {
+	const id = String(s.ean),
+		storeId = String(s.storeId);
+	const result = parseSBatch(
+		{ data: { p0: s, p1: null, p2: s, p3: { ...s, storeId: "999" } } },
+		[id, "10000000", "10000001", id],
+		storeId,
+	);
+	assert.equal(result.products.length, 1);
+	assert.equal(result.products[0]?.id, id);
+	assert.equal(result.failures.length, 3);
+	assert.ok(result.failures.some((f) => /wrong product/.test(f.error)));
+	assert.ok(result.failures.some((f) => /different store/.test(f.error)));
+	const partial = parseSBatch(
+		{
+			data: { p0: s, p1: null },
+			errors: [{ path: ["p1"], message: "Temporary upstream failure" }],
+		},
+		[id, "10000000"],
+		storeId,
+	);
+	assert.equal(partial.products.length, 1);
+	assert.match(partial.failures[0]?.error ?? "", /query failed/);
+	assert.notEqual(partial.failures[0]?.error, "S-Kaupat product not found");
+});
 
 test("K milk retains store, nutrition basis, allergen and litre price", () => {
 	const product = parseKProduct(k, "N106");

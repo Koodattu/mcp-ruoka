@@ -1,4 +1,5 @@
 import type { GroceryProduct } from "./grocery-types.ts";
+import { packageSize } from "./package-size.ts";
 
 export interface NutritionAssessment {
 	per100g: {
@@ -77,7 +78,13 @@ export function assessNutrition(
 		warnings: [],
 	};
 	const conflicts = new Set<string>();
-	for (const table of product.nutrition) {
+	const exactFields = new Set<string>();
+	const tables = [...product.nutrition].sort(
+		(a, b) =>
+			Number(/^100\s*g$/i.test(b.basis?.trim() ?? "")) -
+			Number(/^100\s*g$/i.test(a.basis?.trim() ?? "")),
+	);
+	for (const table of tables) {
 		const basis = table.basis?.trim().match(/^(\d+(?:[.,]\d+)?)\s*g$/i);
 		if (!basis?.[1] || Number(basis[1].replace(",", ".")) <= 0) continue;
 		if (table.preparation && /valmistettuna|prepared|tillagad/i.test(table.preparation)) {
@@ -93,6 +100,9 @@ export function assessNutrition(
 					? row.value.match(/(?:^|\/)\s*(\d+(?:[.,]\d+)?)\s*kcal\s*$/i)
 					: row.value.trim().match(/^(\d+(?:[.,]\d+)?)\s*g$/i);
 			if (!match?.[1]) continue; // Bounds such as <0.5 g are not exact values.
+			// Serving panels are rounded independently; prefer the explicit 100 g panel.
+			if (scale !== 1 && exactFields.has(key)) continue;
+			if (scale === 1) exactFields.add(key);
 			const value = Math.round(Number(match[1].replace(",", ".")) * scale * 10000) / 10000;
 			const previous = result.per100g[key];
 			if (previous != null && previous !== value) {
@@ -101,6 +111,25 @@ export function assessNutrition(
 				result.conflicts.nutrients.push(key);
 				result.warnings.push(`Conflicting ${key} values in nutrition tables; left unknown.`);
 			} else result.per100g[key] = value;
+		}
+	}
+	const claimedItemProtein = (product.description ?? "").match(
+		/(?:proteiinia|protein)[^.\n]{0,40}?(\d+(?:[.,]\d+)?)\s*g\s*(?:\/|per\s+)(?:patukka|bar|annos)/i,
+	);
+	const size = packageSize(product.name);
+	if (claimedItemProtein && size && result.per100g.protein != null) {
+		const claimed = Number(claimedItemProtein[1]?.replace(",", "."));
+		const calculated = (result.per100g.protein * size.itemG) / 100;
+		if (Math.abs(claimed - calculated) > Math.max(0.5, claimed * 0.05)) {
+			for (const key of Object.keys(result.per100g) as Array<
+				keyof NutritionAssessment["per100g"]
+			>) {
+				result.per100g[key] = null;
+				result.conflicts.nutrients.push(key);
+			}
+			result.warnings.push(
+				"The per-item protein claim conflicts with the nutrition panel's stated basis; values need verification.",
+			);
 		}
 	}
 	const claimsText = [product.name, product.description ?? "", ...(product.claims ?? [])].join(

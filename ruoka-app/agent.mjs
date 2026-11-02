@@ -1,5 +1,6 @@
 import { instructions } from "./prompt.mjs";
 import {
+	compareGroceries,
 	discoverGroceries,
 	inspectGroceries,
 	workflowTools,
@@ -131,6 +132,7 @@ export async function runAgent({
 					"get_preferences",
 					"discover_products",
 					"get_products",
+					"rank_products",
 				].includes(tool.name),
 		),
 	];
@@ -206,13 +208,17 @@ export async function runAgent({
 				const args = JSON.parse(call.arguments);
 				if (!args || typeof args !== "object" || Array.isArray(args))
 					throw new Error("Tool arguments must be a JSON object.");
-				const result = ["discover_groceries", "inspect_groceries"].includes(
-					call.name,
-				)
+				const result = [
+					"discover_groceries",
+					"inspect_groceries",
+					"compare_groceries",
+				].includes(call.name)
 					? {
-							structuredContent: await (call.name === "discover_groceries"
-								? discoverGroceries
-								: inspectGroceries)(args, {
+							structuredContent: await (call.name === "compare_groceries"
+								? compareGroceries
+								: call.name === "discover_groceries"
+									? discoverGroceries
+									: inspectGroceries)(args, {
 								mcp,
 								city,
 								signal,

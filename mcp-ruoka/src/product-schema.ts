@@ -8,6 +8,7 @@ import {
 const Amount = z.number().nonnegative().nullable();
 const UnitPrice = z.object({ amount: z.number().nonnegative(), unit: z.string() }).nullable();
 export const GroceryProductSchema = z.object({
+	labelSource: z.object({ url: z.string(), fetchedAt: z.iso.datetime() }).optional(),
 	chain: GroceryChainSchema,
 	storeId: z.string().nullable(),
 	id: z.string(),

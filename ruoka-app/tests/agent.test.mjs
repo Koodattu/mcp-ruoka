@@ -66,6 +66,7 @@ test("current city context is replayable and new search replaces the old compari
 	assert.match(request.instructions, /Seinäjoki/);
 	assert.ok(request.tools.some((tool) => tool.name === "discover_groceries"));
 	assert.ok(request.tools.some((tool) => tool.name === "inspect_groceries"));
+	assert.ok(request.tools.some((tool) => tool.name === "compare_groceries"));
 	assert.ok(!request.tools.some((tool) => tool.name === "compare_products"));
 	assert.equal(result.input[0].role, "developer");
 	assert.match(result.input[0].content, /Seinäjoki/);

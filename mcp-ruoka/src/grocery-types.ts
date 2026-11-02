@@ -5,6 +5,7 @@ export const GroceryChainSchema = z.enum(["k-ruoka", "s-kaupat", "lidl"]);
 export type GroceryChain = z.infer<typeof GroceryChainSchema>;
 
 export interface GroceryProduct extends Product {
+	labelSource?: { url: string; fetchedAt: string };
 	categoryPath?: string | null;
 	chain: GroceryChain;
 	storeId: string | null;

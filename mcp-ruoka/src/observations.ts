@@ -3,7 +3,9 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as z from "zod/v4";
-import { GroceryChainSchema, type GroceryProduct } from "./grocery-types.ts";
+import { CACHE_MS, offerExpiry } from "./cache-policy.ts";
+import { GroceryChainSchema, type GroceryProduct, productDefaults } from "./grocery-types.ts";
+import { packageSize } from "./package-size.ts";
 import { GroceryProductSchema } from "./product-schema.ts";
 
 type Binding = string | number | null;
@@ -69,6 +71,76 @@ export class ObservationStore {
 	close() {
 		this.db.close();
 	}
+	readLabel(summary: GroceryProduct, now = Date.now()): GroceryProduct | null {
+		const row = this.db
+			.prepare(
+				"SELECT payload,last_seen FROM labels_v1 WHERE chain=? AND id=? ORDER BY last_seen DESC LIMIT 1",
+			)
+			.get(summary.chain, summary.id) as { payload: string; last_seen: string } | undefined;
+		if (!row || Date.parse(row.last_seen) + CACHE_MS.labels <= now) {
+			this.counters.misses++;
+			return null;
+		}
+		const label = JSON.parse(row.payload);
+		const oldSize = packageSize(label.name ?? summary.name),
+			newSize = packageSize(summary.name);
+		if (
+			oldSize &&
+			newSize &&
+			(oldSize.totalG !== newSize.totalG || oldSize.units !== newSize.units)
+		) {
+			this.counters.misses++;
+			return null;
+		}
+		const parsed = GroceryProductSchema.safeParse({
+			...summary,
+			...label,
+			source: { url: label.url, fetchedAt: row.last_seen },
+		});
+		if (!parsed.success || !parsed.data.gtins.includes(summary.id)) {
+			this.counters.misses++;
+			return null;
+		}
+		this.counters.hits++;
+		return parsed.data;
+	}
+	readProduct(
+		chain: GroceryProduct["chain"],
+		storeId: string | null,
+		id: string,
+		now = Date.now(),
+	): GroceryProduct | null {
+		const row = this.db
+			.prepare(
+				"SELECT payload FROM offers_v1 WHERE chain=? AND store=? AND id=? AND observed_at>? ORDER BY observed_at DESC LIMIT 1",
+			)
+			.get(chain, storeId ?? "", id, new Date(now - CACHE_MS.offers).toISOString()) as
+			| { payload: string }
+			| undefined;
+		if (!row) return null;
+		const offer = OfferSchema.parse(JSON.parse(row.payload));
+		if (offerExpiry([offer], now) <= now) return null;
+		const summary = GroceryProductSchema.parse({
+			...productDefaults(chain, storeId, offer.source.url),
+			imageUrl: null,
+			brand: null,
+			category: null,
+			unitPrice: null,
+			gtins: [id],
+			...offer,
+		});
+		const label = this.readLabel(summary, now);
+		return label
+			? {
+					...label,
+					...offer,
+					labelSource: label.source,
+					unitPrice: offer.pricing.unitPrice
+						? `${offer.pricing.unitPrice.amount} EUR/${offer.pricing.unitPrice.unit}`
+						: null,
+				}
+			: null;
+	}
 	readCache<T>(key: string, schema: z.ZodType<T>, now = Date.now()): T | null {
 		const raw = this.db.prepare("SELECT expires,payload FROM cache_v1 WHERE key=?").get(key);
 		if (!raw) {
@@ -133,6 +205,11 @@ export class ObservationStore {
 				);
 				if (kind === "detail") {
 					const label = {
+						name: p.name,
+						imageUrl: p.imageUrl,
+						brand: p.brand,
+						category: p.category,
+						categoryPath: p.categoryPath,
 						gtins: p.gtins,
 						ingredients: p.ingredients,
 						description: p.description,

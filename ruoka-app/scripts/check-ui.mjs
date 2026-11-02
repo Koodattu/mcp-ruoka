@@ -159,13 +159,54 @@ export async function checkPresentation(
 | [Mustikka](https://example.com/blueberry) | 4,8 g | 11 g | 1,25 € (8,33 €/kg) |
 
 Hinnat: **Prisma Seinäjoki**. [Unsafe](https://example.com/unsafe)
-[Other shop](https://example.com/other-shop) [Prepared label](https://example.com/prepared)
+[Other shop](https://example.com/other-shop) [Prepared label](https://example.com/prepared) [Leader](https://example.com/leader)
 <img src=x onerror=alert(1)> [Bad](javascript:alert)
 
 Name | Note
 --- | ---
 Plain | A \\| B`;
 	const trace = [
+		{
+			type: "tool_start",
+			id: "comparison",
+			name: "compare_groceries",
+			arguments: "{}",
+		},
+		{
+			type: "tool_end",
+			id: "comparison",
+			name: "compare_groceries",
+			durationMs: 50,
+			output: JSON.stringify({
+				data: {
+					products: [],
+					leaders: [
+						{
+							product: {
+								source: { url: "https://example.com/leader" },
+								imageUrl: "https://images.example.com/leader.png",
+							},
+						},
+					],
+					coverage: {
+						complete: false,
+						evaluated: 115,
+						distinctProducts: 115,
+						listings: 173,
+						labelsReused: 100,
+						labelsFetched: 15,
+						labelRequests: 2,
+						unresolved: 4,
+						frontier: 11,
+					},
+					needsPriority: true,
+					rule: {
+						mode: "tradeoffs",
+						sort: [{ metric: "price", direction: "asc" }],
+					},
+				},
+			}),
+		},
 		{ type: "tool_start", id: "c1", name: "find_groceries", arguments: "{}" },
 		{
 			type: "tool_end",
@@ -248,7 +289,24 @@ Plain | A \\| B`;
 		await page.waitForFunction(
 			() => !document.querySelector('img[src$="missing.png"]'),
 		);
-		assert.equal(await page.locator(".answer img").count(), 3);
+		assert.equal(await page.locator(".answer img").count(), 4);
+		assert.match(
+			await page.locator(".comparison-coverage summary").textContent(),
+			/115\/115 products evaluated.*173 store listings.*4 unresolved/,
+		);
+		await page.locator(".comparison-coverage summary").click();
+		assert.match(
+			await page.locator(".comparison-coverage").textContent(),
+			/2 retailer detail requests/,
+		);
+		assert.match(
+			await page.locator(".comparison-coverage").textContent(),
+			/package price, lowest first/,
+		);
+		assert.match(
+			await page.locator(".comparison-coverage").textContent(),
+			/11 products trade advantages/,
+		);
 		await page.locator(".offer-status summary").click();
 		assert.match(
 			await page.locator(".offer-status").textContent(),

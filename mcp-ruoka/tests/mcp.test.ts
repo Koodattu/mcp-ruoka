@@ -31,6 +31,7 @@ test("Node stdio advertises grocery tools and returns structured capabilities wi
 			"get_products",
 			"get_provider_health",
 			"get_stores",
+			"rank_products",
 			"search_products",
 			"set_preferences",
 		]);

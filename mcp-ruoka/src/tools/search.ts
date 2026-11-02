@@ -25,9 +25,34 @@ import {
 	ManufacturerSourceSchema,
 } from "../manufacturer.ts";
 import { getObservationStore, getPriceHistory, HistoryInputSchema } from "../observations.ts";
+import { RankProductsSchema, rankProducts } from "../ranking.ts";
 import { toolResult } from "./result.ts";
 
 export function registerSearchTool(server: McpServer): void {
+	server.registerTool(
+		"rank_products",
+		{
+			description:
+				"Exhaustively paginate selected-store searches, deduplicate exact barcodes, reuse 30-day labels, and calculate rankings in code. Select only required numeric fields; price-only requests skip nutrition. Ordered mode applies explicit priorities; tradeoffs returns non-dominated options without inventing weights. Coverage and unknowns determine whether a winner can be claimed. Prices cached 6 hours; current_prices refreshes every search page. Progress notifications report collection and label work.",
+			inputSchema: RankProductsSchema,
+		},
+		(input, extra) => {
+			let progress = 0;
+			return toolResult(() =>
+				rankProducts(input, {
+					signal: extra.signal,
+					progress: async (message) => {
+						const token = extra._meta?.progressToken;
+						if (token !== undefined)
+							await extra.sendNotification({
+								method: "notifications/progress",
+								params: { progressToken: token, progress: ++progress, message },
+							});
+					},
+				}),
+			);
+		},
+	);
 	server.registerTool(
 		"discover_products",
 		{

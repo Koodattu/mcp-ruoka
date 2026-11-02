@@ -1,10 +1,16 @@
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
+import { RankingCriteriaSchema } from "../mcp-ruoka/src/ranking-schema.ts";
 import { resolveCity } from "./cities.mjs";
 import { config } from "./config.mjs";
 import { compactProduct, unpack } from "./search.mjs";
 
 const z = createRequire(resolve(config.mcpDir, "package.json"))("zod/v4");
+const ComparisonInput = RankingCriteriaSchema.extend({
+	city: z.string().trim().min(1).max(100).optional(),
+	chain: z.enum(["s-kaupat", "k-ruoka"]).optional(),
+	storeName: z.string().trim().min(1).max(100).optional(),
+});
 const DiscoveryInput = z
 	.object({
 		query: z.string().trim().min(1).max(100),
@@ -34,10 +40,18 @@ const InspectionInput = z
 export const workflowTools = [
 	{
 		type: "function",
+		name: "compare_groceries",
+		strict: false,
+		description:
+			"Use for best/cheapest/nutrient/size comparisons or sorted lists. The MCP automatically checks ALL search pages in selected city stores, deduplicates barcodes, retrieves only missing needed labels and computes exact rankings. Choose fields to return only requested metrics, plus sort/constraint metrics. Ordered sort is lexicographic priority: price asc, proteinPer100g desc, kcalPerItem asc, sizeG desc, etc. For multiple competing preferences WITHOUT a priority use mode tradeoffs with each objective; never invent numerical limits or weights. price is package purchase cost, itemPrice is per bar within a multipack. A precise ordered objective may produce a winner; tradeoffs may need a user priority. Never replace incomplete coverage with a definitive claim. Follow-ups repeat the constraints and reuse cached labels. freshness=current_prices is only for an explicitly current check.",
+		parameters: z.toJSONSchema(ComparisonInput, { io: "input" }),
+	},
+	{
+		type: "function",
 		name: "discover_groceries",
 		strict: false,
 		description:
-			"FIRST discover a compact candidate list in the selected city (up to 50 per K/S store), without fetching labels. Use short Finnish queries, then select products by name/category/price for inspect_groceries. Reports weak matches and pagination; these are candidates, not verified recommendations. Explicit storeName selects matching stores, including multiple stores when the user requests comparison. Use returned nextOffset to continue one store at a time via storeName.",
+			"Explore unfamiliar categories or qualitative product requirements using compact candidates, then inspect selected labels. For numeric rankings, best/cheapest comparisons and sorted lists use compare_groceries instead: discovery is only a partial page and cannot establish a winner. Use nextOffset to browse more candidates.",
 		parameters: z.toJSONSchema(DiscoveryInput, { io: "input" }),
 	},
 	{
@@ -54,6 +68,92 @@ const normalize = (text) =>
 		.normalize("NFD")
 		.replace(/\p{Diacritic}/gu, "")
 		.toLocaleLowerCase("fi");
+
+export async function compareGroceries(
+	args,
+	{ mcp, city, signal, emit = () => {} },
+) {
+	const input = ComparisonInput.parse(args);
+	if (!input.city && !city)
+		return {
+			status: "needs_location",
+			message: "Choose a shopping city; no store ID needed.",
+		};
+	const location = resolveCity(input.city ?? city);
+	const stores = [],
+		warnings = [],
+		failures = [];
+	for (const chain of input.chain ? [input.chain] : ["s-kaupat", "k-ruoka"]) {
+		signal.throwIfAborted();
+		try {
+			const directory = unpack(
+				await mcp.call("get_stores", { chain, city: location }, signal),
+			);
+			const matches = directory.stores.filter(
+				(s) =>
+					s.chain === chain &&
+					(!input.storeName ||
+						normalize(s.name).includes(normalize(input.storeName))),
+			);
+			matches.sort(
+				(a, b) =>
+					Number(/prisma|citymarket/i.test(b.name)) -
+						Number(/prisma|citymarket/i.test(a.name)) ||
+					a.name.localeCompare(b.name, "fi"),
+			);
+			const selected = matches.slice(
+				0,
+				Math.min(input.storeName ? 2 : 1, 2 - stores.length),
+			);
+			stores.push(
+				...selected.map((s) => ({ chain, storeId: s.id, name: s.name })),
+			);
+			if (matches.length > selected.length)
+				warnings.push(
+					`Compared ${selected.length} of ${matches.length} matching ${chain} stores; not city-wide coverage.`,
+				);
+		} catch (error) {
+			signal.throwIfAborted();
+			failures.push({ chain, error: error.message });
+		}
+	}
+	if (!stores.length)
+		return {
+			status: failures.length ? "provider_failure" : "no_stores",
+			failures,
+			city: location,
+		};
+	const { city: _city, chain: _chain, storeName: _name, ...criteria } = input;
+	emit({ type: "status", text: "Collecting the full comparison…" });
+	const result = unpack(
+		await mcp.call(
+			"rank_products",
+			{ ...criteria, stores },
+			signal,
+			(progress) => {
+				if (progress.message) emit({ type: "status", text: progress.message });
+			},
+		),
+	);
+	if (failures.length) {
+		result.status = "incomplete";
+		result.coverage.complete = false;
+		result.winnerId = null;
+		result.limitation = [
+			result.limitation,
+			"A requested retailer's store directory failed; its products were not compared.",
+		]
+			.filter(Boolean)
+			.join(" ");
+	}
+	return {
+		...result,
+		city: location,
+		stores,
+		failures,
+		warnings: [...warnings, ...(result.warnings ?? [])],
+	};
+}
 export async function discoverGroceries(
 	args,
 	{ mcp, city, signal, emit = () => {} },

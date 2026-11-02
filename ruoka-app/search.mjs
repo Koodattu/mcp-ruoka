@@ -143,6 +143,7 @@ export function compactProduct(product, store, reasons) {
 		priceConditions: product.pricing?.conditions ?? [],
 		availability: product.availability,
 		source: product.source,
+		labelSource: product.labelSource ?? product.source,
 		warnings: product.warnings ?? [],
 		...(reasons === undefined ? {} : { unmetRequirements: reasons }),
 	};

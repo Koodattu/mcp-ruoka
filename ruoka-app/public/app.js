@@ -22,6 +22,8 @@ function rememberProductImages(result) {
 		? [...data.products]
 		: [data?.product ?? data];
 	if (Array.isArray(data?.unverified)) products.push(...data.unverified);
+	if (Array.isArray(data?.leaders))
+		products.push(...data.leaders.map((l) => l.product).filter(Boolean));
 	for (const product of products) {
 		if (Array.isArray(product?.otherOffers))
 			products.push(...product.otherOffers);
@@ -60,6 +62,7 @@ let currentId = null,
 	citySave,
 	loadVersion = 0;
 const toolLabels = {
+	compare_groceries: "Comparing the full assortment",
 	discover_groceries: "Browsing product candidates",
 	inspect_groceries: "Checking selected product labels",
 	get_product_availability: "Checking store availability",
@@ -76,6 +79,19 @@ const toolLabels = {
 	get_lidl_leaflets: "Checking Lidl leaflets",
 	get_manufacturer_label: "Reading a manufacturer label",
 	discover_manufacturer_label: "Finding a manufacturer label",
+};
+const metricLabels = {
+	price: "package price",
+	itemPrice: "price per item",
+	pricePerKg: "price per kg",
+	sizeG: "package weight",
+	proteinPer100g: "protein per 100 g",
+	kcalPer100g: "calories per 100 g",
+	sugarPer100g: "sugar per 100 g",
+	proteinPerItem: "protein per item",
+	kcalPerItem: "calories per item",
+	pricePer20gProtein: "cost per 20 g protein",
+	proteinPer100kcal: "protein per 100 kcal",
 };
 
 function element(tag, className, text) {
@@ -361,6 +377,8 @@ function addTurn(turn) {
 	const items = element("div", "trace-items");
 	trace.append(summary, items);
 	const answer = element("div", "answer");
+	const coverage = element("details", "comparison-coverage");
+	coverage.hidden = true;
 	const progress = element("div", "turn-progress");
 	const status = element("span", "progress-status", "Working…");
 	status.setAttribute("role", "status");
@@ -389,7 +407,7 @@ function addTurn(turn) {
 			timing.durationMs,
 		);
 	else progress.hidden = true;
-	assistant.append(heading, progress, trace, answer);
+	assistant.append(heading, progress, trace, coverage, answer);
 	node.append(assistant);
 	ui.messages.append(node);
 	const rows = new Map();
@@ -421,6 +439,41 @@ function addTurn(turn) {
 				result = { data: event.output };
 			}
 			rememberProductImages(result);
+			if (event.name === "compare_groceries" && result.data?.coverage) {
+				const c = result.data.coverage;
+				coverage.hidden = false;
+				coverage.replaceChildren(
+					element(
+						"summary",
+						"",
+						`${c.complete ? "Comparison complete" : "Comparison incomplete"} · ${c.evaluated}/${c.distinctProducts} products evaluated · ${c.listings} store listings${c.unresolved ? ` · ${c.unresolved} unresolved` : ""}`,
+					),
+					element(
+						"p",
+						"",
+						`${c.labelsReused} cached labels · ${c.labelsFetched} fetched labels · ${c.labelRequests ?? c.labelsFetched} retailer detail requests · ${c.unresolved} unresolved products. Coverage is limited to the selected stores and searches.`,
+					),
+				);
+				if (
+					result.data.needsPriority ||
+					result.data.status === "choose_priority"
+				)
+					coverage.append(
+						element(
+							"p",
+							"",
+							`${c.frontier} products trade advantages. Choose a priority to identify a winner.`,
+						),
+					);
+				if (result.data.rule?.sort)
+					coverage.append(
+						element(
+							"p",
+							"",
+							`${result.data.rule.mode === "tradeoffs" ? "Preferences" : "Ranking priority"}: ${result.data.rule.sort.map((s) => `${metricLabels[s.metric] ?? s.metric}, ${s.direction === "asc" ? "lowest first" : "highest first"}`).join("; ")}`,
+						),
+					);
+			}
 			row.label.textContent = `${result.isError ? "Issue" : "Done"} · ${toolLabels[event.name] || event.name} · ${(event.durationMs / 1000).toFixed(1)}s`;
 			if (result.data?.cache)
 				row.label.textContent += ` · ${result.data.cache.hits} cache hits, ${result.data.cache.misses} misses`;

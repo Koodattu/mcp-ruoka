@@ -60,6 +60,18 @@ async function send(id, message) {
 			inspected += result.data.products.length;
 			for (const p of result.data.products) evidence.set(p.source.url, p);
 		}
+		if (event.name === "compare_groceries") {
+			assert.equal(result.data.city, settings.city);
+			discovered += result.data.coverage.listings;
+			inspected += result.data.coverage.evaluated;
+			for (const p of [
+				...result.data.products,
+				...(result.data.leaders ?? []).map((l) => l.product).filter(Boolean),
+			]) {
+				evidence.set(p.source.url, p);
+				candidates.add(key(p));
+			}
+		}
 	}
 	const recommended = [...evidence.values()].filter((p) =>
 		turn.assistant_text.includes(`](${p.source.url})`),
@@ -115,11 +127,16 @@ if (process.argv.includes("--chicken")) {
 	const yogurt = (result) => {
 		checked(result);
 		for (const p of result.recommended) {
-			assert.ok(p.lactoseFreeEvidence, "Lactose-free evidence required.");
+			assert.ok(
+				p.lactoseFreeEvidence || p.verified?.lactoseFree,
+				"Lactose-free evidence required.",
+			);
 			assert.match(p.name, /jogurt|yogurt|yoghurt/i);
 			assert.ok(!/rahka|skyr|juoma|vanukas/i.test(p.name));
 			assert.ok(
-				p.nutritionPer100g?.protein != null || p.nutritionTables?.length,
+				p.metrics?.proteinPer100g != null ||
+					p.nutritionPer100g?.protein != null ||
+					p.nutritionTables?.length,
 				"Preserve original nutrition if preparation needs explanation.",
 			);
 		}
@@ -132,15 +149,14 @@ if (process.argv.includes("--chicken")) {
 	const cheaper = await send(id, "Jotain halvempaa.");
 	yogurt(cheaper);
 	assert.ok(cheaper.recommended.every((p) => /prisma/i.test(p.store.name)));
+	const perKg = (p) =>
+		p.metrics?.pricePerKg ??
+		(p.unitPrice?.unit === "kg" ? p.unitPrice.amount : null);
 	const before = Math.min(
-		...prisma.recommended
-			.filter((p) => p.unitPrice?.unit === "kg")
-			.map((p) => p.unitPrice.amount),
+		...prisma.recommended.map(perKg).filter((v) => v != null),
 	);
 	assert.ok(
-		cheaper.recommended.some(
-			(p) => p.unitPrice?.unit === "kg" && p.unitPrice.amount < before,
-		),
+		cheaper.recommended.some((p) => perKg(p) != null && perKg(p) < before),
 		"Find a genuinely cheaper checked option.",
 	);
 	const vague = await send(await conversation(), "Paras jogurtti?");

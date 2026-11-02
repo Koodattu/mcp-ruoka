@@ -111,23 +111,68 @@ export function parseSProduct(raw: unknown, storeId: string): GroceryProduct {
 // Adapted from Jameshooper/mcp-ruoka's s-kaupat-api.ts: a plain GET field query
 // avoids the changing persisted-query hash for product details. See README attribution.
 export async function getProduct(ean: string, storeId: string): Promise<GroceryProduct> {
-	if (!/^\d+$/.test(ean) || !/^\d+$/.test(storeId))
-		throw new Error("Invalid S-Kaupat product or store ID");
+	const result = await getProducts([ean], storeId);
+	if (!result.products[0])
+		throw new Error(result.failures[0]?.error ?? "S-Kaupat product not found");
+	return result.products[0];
+}
+
+export async function getProducts(eans: string[], storeId: string) {
+	if (
+		!eans.length ||
+		eans.length > 8 ||
+		eans.some((id) => !/^\d{1,14}$/.test(id)) ||
+		!/^\d+$/.test(storeId)
+	)
+		throw new Error("Invalid S-Kaupat product batch or store ID");
+	const ids = [...new Set(eans)];
 	const url = new URL("https://api.s-kaupat.fi/");
 	url.searchParams.set(
 		"query",
-		`{ product(id: "${ean}", storeId: "${storeId}", fallbackToGlobal: true, includeAgeLimitedByAlcohol: true) {
+		`{ ${ids
+			.map(
+				(
+					ean,
+					i,
+				) => `p${i}: product(id: "${ean}", storeId: "${storeId}", fallbackToGlobal: true, includeAgeLimitedByAlcohol: true) {
 		ean storeId name slug brandName countryOfOrigin ingredientStatement description isGlobalFallback
 		allergens { allergenTypeText levelOfContainmentCode }
 		pricing { currentPrice regularPrice comparisonPrice comparisonUnit campaignPrice depositPrice isApproximatePrice campaignPriceValidUntil }
 		productDetails { nutrients { referenceQuantity nutrients { name value } } storageGuideForConsumer productImages { mainImage { urlTemplate } } }
 		location { aisle floor } hierarchyPath { name }
-	} }`,
+	}`,
+			)
+			.join("\n")} }`,
 	);
 	const raw = await requestJson(url, "https://www.s-kaupat.fi");
-	const data = z.object({ data: z.object({ product: z.unknown() }) }).parse(raw);
-	if (data.data.product == null) throw new Error("S-Kaupat product not found");
-	const product = parseSProduct(data.data.product, storeId);
-	if (product.id !== ean) throw new Error("S-Kaupat returned the wrong product");
-	return product;
+	return parseSBatch(raw, ids, storeId);
+}
+
+export function parseSBatch(raw: unknown, ids: string[], storeId: string) {
+	const data = z
+		.object({
+			data: z.record(z.string(), z.unknown()),
+			errors: z
+				.array(z.object({ path: z.array(z.union([z.string(), z.number()])).optional() }))
+				.optional(),
+		})
+		.parse(raw);
+	const products: GroceryProduct[] = [],
+		failures: Array<{ id: string; error: string }> = [];
+	for (const [i, id] of ids.entries()) {
+		try {
+			if (data.errors?.some((e) => !e.path?.length || e.path[0] === `p${i}`))
+				throw new Error("S-Kaupat label query failed; retry later");
+			if (data.data[`p${i}`] == null) throw new Error("S-Kaupat product not found");
+			const p = parseSProduct(data.data[`p${i}`], storeId);
+			if (p.id !== id) throw new Error("S-Kaupat returned the wrong product");
+			products.push(p);
+		} catch (error) {
+			failures.push({
+				id,
+				error: error instanceof Error ? error.message : "Invalid product response",
+			});
+		}
+	}
+	return { products, failures };
 }

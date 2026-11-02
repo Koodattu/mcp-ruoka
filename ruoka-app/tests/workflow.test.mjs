@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { discoverGroceries, inspectGroceries } from "../workflow.mjs";
+import {
+	compareGroceries,
+	discoverGroceries,
+	inspectGroceries,
+} from "../workflow.mjs";
 
 const signal = () => new AbortController().signal;
 const store = {
@@ -21,6 +25,49 @@ const candidates = [
 		category: "broileri/fileet-pihvit",
 	},
 ];
+test("comparison passes explicit metrics and limits to the MCP, forwards progress and reports directory failure", async () => {
+	const events = [],
+		calls = [];
+	const mcp = {
+		call: async (name, args, _signal, onprogress) => {
+			calls.push({ name, args });
+			if (name === "get_stores") {
+				if (args.chain === "s-kaupat") throw new Error("Directory unavailable");
+				return { structuredContent: { stores: [store] } };
+			}
+			assert.equal(name, "rank_products");
+			onprogress({ message: "Checking labels · 90/115" });
+			return {
+				structuredContent: {
+					status: "ranked",
+					winnerId: "1",
+					products: [],
+					coverage: { complete: true },
+					warnings: [],
+				},
+			};
+		},
+	};
+	const r = await compareGroceries(
+		{
+			queries: ["proteiinipatukka"],
+			productKind: "protein_bar",
+			sort: [{ metric: "proteinPerItem", direction: "desc" }],
+			constraints: [{ metric: "price", max: 2 }],
+			fields: ["kcalPerItem"],
+		},
+		{ mcp, city: "Seinäjoki", signal: signal(), emit: (e) => events.push(e) },
+	);
+	assert.equal(r.status, "incomplete");
+	assert.equal(r.coverage.complete, false);
+	assert.equal(r.winnerId, null);
+	assert.match(r.limitation, /directory failed/);
+	const input = calls.find((c) => c.name === "rank_products").args;
+	assert.deepEqual(input.fields, ["kcalPerItem"]);
+	assert.deepEqual(input.constraints, [{ metric: "price", max: 2 }]);
+	assert.equal(input.stores[0].storeId, "N192");
+	assert.ok(events.some((e) => e.text.includes("90/115")));
+});
 test("discovery preserves the long candidate list, weak-match warning and pagination without fetching details", async () => {
 	const calls = [];
 	const mcp = {

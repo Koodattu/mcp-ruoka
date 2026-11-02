@@ -9,6 +9,7 @@ const {
 	StdioClientTransport,
 } = require("@modelcontextprotocol/sdk/client/stdio.js");
 const allowed = new Set([
+	"rank_products",
 	"discover_products",
 	"get_products",
 	"get_product_availability",
@@ -89,12 +90,13 @@ export function createMcp() {
 				strict: false,
 			}));
 		},
-		async call(name, args, signal) {
+		async call(name, args, signal, onprogress) {
 			if (!allowed.has(name)) throw new Error(`Tool is not available: ${name}`);
 			const current = await connect();
 			return current.callTool({ name, arguments: args }, undefined, {
 				signal,
-				timeout: 150_000,
+				timeout: name === "rank_products" ? 210_000 : 150_000,
+				onprogress,
 			});
 		},
 		async close() {
